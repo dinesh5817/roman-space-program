@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+
+{% block title %}Shop — Roman Space Program{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4" id="vehicleAssemblyTitle"></h1>
+
+    <div
+        id="budgetDisplay"
+        class="d-inline-block px-3 py-2 text-white"
+        style="background-color: rgb(48, 219, 48); border-radius: 6px;"
+    >
+        <span id="spentAmount">0</span>
+        / 80M
+    </div>
+
+    <script src="{{ url_for('static', path='shop.js') }}"></script>
+{% endblock %}
