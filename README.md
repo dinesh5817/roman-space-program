@@ -21,6 +21,11 @@ Meteorite Landings dataset.
 
 The meteorite records are from NASA's [Meteorite Landings dataset](https://data.nasa.gov/dataset/meteorite-landings).
 
+## AI / SI Use
+
+SI tools were used during implementation. See [SI_USAGE.txt](./SI_USAGE.txt)
+for the tools used and the developer's estimated contribution breakdown.
+
 ## Run locally
 
 Requirements: Python 3.12 or newer and [uv](https://docs.astral.sh/uv/).

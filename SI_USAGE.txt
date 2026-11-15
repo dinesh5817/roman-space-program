@@ -1,0 +1,18 @@
+AI / Super Intelligence Use Disclosure
+
+AI tools used during project development:
+- OpenAI ChatGPT
+- Grok by xAI
+- Microsoft Copilot Fusion
+- Google Gemini
+
+The project concept, ideas, and gameplay logic were developed by Dinesh
+Krishnan G. without AI assistance. AI tools were used as coding assistants
+during implementation.
+
+Estimated AI contribution to the code, as reported by the developer:
+- Python: approximately 5%
+- HTML and CSS: approximately 75%
+- JavaScript: approximately 55%
+
+These percentages are estimates, not measured or audited figures.
