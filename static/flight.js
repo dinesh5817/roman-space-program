@@ -290,13 +290,30 @@ function buildVehicleConfiguration(rocket) {
     const boosterEngine =
         rocket.boosterEngine || null;
 
-    if (boosterCount > 0 && !boosterEngine) {
+    const boosterFuelTank =
+        rocket.boosterFuelTank || null;
+
+    const boosterFuelTankCount =
+        Number(rocket.boosterFuelTankCount ?? 0);
+
+    if (
+        boosterCount > 0 &&
+        (
+            !boosterEngine ||
+            !boosterFuelTank ||
+            !Number.isInteger(boosterFuelTankCount) ||
+            boosterFuelTankCount < 1
+        )
+    ) {
         return null;
     }
 
     const boosterMass =
         boosterEngine && boosterCount > 0
-            ? Number(boosterEngine.mass ?? 0) * boosterCount
+            ? Number(boosterEngine.mass ?? 0) * boosterCount +
+                Number(boosterFuelTank.mass ?? 0) *
+                    boosterFuelTankCount *
+                    boosterCount
             : 0;
 
     const boosterThrust =
@@ -307,11 +324,9 @@ function buildVehicleConfiguration(rocket) {
 
     const boosterFuel =
         boosterEngine && boosterCount > 0
-            ? Number(
-                boosterEngine.fuel ??
-                boosterEngine.fuelMass ??
-                0
-            )
+            ? Number(boosterFuelTank.fuel ?? 0) *
+                boosterFuelTankCount *
+                boosterCount
             : 0;
 
     const boosterISP =
@@ -434,7 +449,8 @@ function buildVehicleConfiguration(rocket) {
         boosterCount > 0 &&
         (
             boosterThrust <= 0 ||
-            boosterISP <= 0
+            boosterISP <= 0 ||
+            boosterFuel <= 0
         )
     ) {
         return null;

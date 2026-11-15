@@ -28,6 +28,8 @@ let rocket = {
     stages: [createEmptyStage()],
     boosterCount: 0,
     boosterEngine: null,
+    boosterFuelTank: null,
+    boosterFuelTankCount: 4,
     radio: null
 };
 
@@ -168,6 +170,8 @@ function resetAssembly() {
         stages: [createEmptyStage()],
         boosterCount: 0,
         boosterEngine: null,
+        boosterFuelTank: null,
+        boosterFuelTankCount: 4,
         radio: null
     };
 
@@ -1067,7 +1071,11 @@ function renderManifest() {
         booster.className = "list-group-item manifest-item";
 
         booster.textContent = rocket.boosterEngine
-            ? `${rocket.boosterCount} × ${rocket.boosterEngine.name} boosters`
+            ? `${rocket.boosterCount} × ${rocket.boosterEngine.name} boosters; ${
+                rocket.boosterFuelTank
+                    ? `${rocket.boosterFuelTankCount} × ${rocket.boosterFuelTank.name} per booster`
+                    : "solid fuel tank missing"
+            }`
             : `${rocket.boosterCount} boosters: Engine missing`;
 
         const remove = createRemoveButton("Remove", () => {
@@ -1076,6 +1084,8 @@ function renderManifest() {
 
             rocket.boosterCount = 0;
             rocket.boosterEngine = null;
+            rocket.boosterFuelTank = null;
+            rocket.boosterFuelTankCount = 4;
 
             renderAll();
         });
@@ -1129,6 +1139,30 @@ function selectBoosterCount(count) {
     rocket.boosterCount = count;
     rocket.boosterEngine = null;
 
+    if (count === 0) {
+        rocket.boosterFuelTank = null;
+        rocket.boosterFuelTankCount = 4;
+    }
+
+    renderAll();
+}
+
+
+function changeBoosterFuelTankCount(amount) {
+    if (!rocket.boosterFuelTank) {
+        return;
+    }
+
+    saveHistory();
+
+    rocket.boosterFuelTankCount = Math.max(
+        1,
+        Math.min(
+            20,
+            rocket.boosterFuelTankCount + amount
+        )
+    );
+
     renderAll();
 }
 
@@ -1159,7 +1193,7 @@ function renderBoosters() {
     heading.className = "col-12 text-secondary";
 
     heading.textContent =
-        `Select the engine used by your ${rocket.boosterCount} boosters.`;
+        `Choose an engine and solid fuel tanks for each of your ${rocket.boosterCount} boosters.`;
 
     container.appendChild(heading);
 
@@ -1191,6 +1225,110 @@ function renderBoosters() {
 
             container.appendChild(column);
         });
+
+    const solidFuelTank =
+        tanks.find(tank => tank.fuelType === "solid");
+
+    if (solidFuelTank) {
+        const selected =
+            rocket.boosterFuelTank?.name === solidFuelTank.name;
+
+        const fuelTankColumn = createCard(
+            solidFuelTank.name,
+            [
+                `Unit cost: $${solidFuelTank.cost.toFixed(2)}M`,
+                `Dry mass: ${solidFuelTank.mass.toLocaleString()} kg`,
+                `Fuel: ${solidFuelTank.fuel.toLocaleString()} kg`,
+                selected
+                    ? `Total fuel: ${(
+                        solidFuelTank.fuel *
+                        rocket.boosterFuelTankCount *
+                        rocket.boosterCount
+                    ).toLocaleString()} kg`
+                    : "Solid propellant for each booster"
+            ],
+            selected ? "Selected" : "Select Solid Fuel",
+            () => {
+                if (selected) {
+                    return;
+                }
+
+                saveHistory();
+
+                rocket.boosterFuelTank = {
+                    ...solidFuelTank
+                };
+                rocket.boosterFuelTankCount = 4;
+
+                renderAll();
+            }
+        );
+
+        if (selected) {
+            const fuelTankCard =
+                fuelTankColumn.querySelector(".part-card");
+
+            const picker =
+                document.createElement("div");
+            picker.className = "quantity-picker mt-3";
+
+            const label =
+                document.createElement("div");
+            label.className = "small mb-2";
+            label.textContent = "Fuel tanks per booster";
+
+            const controls =
+                document.createElement("div");
+            controls.className =
+                "d-flex align-items-center justify-content-center gap-3";
+
+            const minus =
+                document.createElement("button");
+            minus.type = "button";
+            minus.className = "btn btn-outline-light";
+            minus.textContent = "−";
+            minus.disabled =
+                rocket.boosterFuelTankCount <= 1;
+            minus.addEventListener("click", () => {
+                changeBoosterFuelTankCount(-1);
+            });
+
+            const quantity =
+                document.createElement("strong");
+            quantity.className = "fs-4";
+            quantity.textContent =
+                rocket.boosterFuelTankCount;
+
+            const plus =
+                document.createElement("button");
+            plus.type = "button";
+            plus.className = "btn btn-outline-light";
+            plus.textContent = "+";
+            plus.disabled =
+                rocket.boosterFuelTankCount >= 20;
+            plus.addEventListener("click", () => {
+                changeBoosterFuelTankCount(1);
+            });
+
+            controls.append(minus, quantity, plus);
+
+            const totalCost =
+                document.createElement("p");
+            totalCost.className =
+                "small text-secondary mt-2 mb-0";
+            totalCost.textContent =
+                `Total cost: $${(
+                    solidFuelTank.cost *
+                    rocket.boosterFuelTankCount *
+                    rocket.boosterCount
+                ).toFixed(2)}M`;
+
+            picker.append(label, controls, totalCost);
+            fuelTankCard.appendChild(picker);
+        }
+
+        container.appendChild(fuelTankColumn);
+    }
 }
 
 
@@ -1261,6 +1399,13 @@ function getTotalCost() {
             rocket.boosterEngine.cost * rocket.boosterCount;
     }
 
+    if (rocket.boosterFuelTank && rocket.boosterCount > 0) {
+        total +=
+            rocket.boosterFuelTank.cost *
+            rocket.boosterFuelTankCount *
+            rocket.boosterCount;
+    }
+
     if (rocket.radio) {
         total += rocket.radio.cost;
     }
@@ -1295,6 +1440,16 @@ function getTotalMass() {
 
         total +=
             rocket.boosterEngine.mass * rocket.boosterCount;
+    }
+
+    if (rocket.boosterFuelTank && rocket.boosterCount > 0) {
+        total +=
+            (
+                rocket.boosterFuelTank.mass +
+                rocket.boosterFuelTank.fuel
+            ) *
+            rocket.boosterFuelTankCount *
+            rocket.boosterCount;
     }
 
     return total;
@@ -1342,48 +1497,133 @@ function calculateDeltaV() {
 
     let totalDeltaV = 0;
 
-    rocket.stages.forEach((stage, index) => {
+    for (let index = 0; index < rocket.stages.length; index++) {
+        const stage = rocket.stages[index];
 
-        if (!stage.engine || stage.tanks.length === 0) return;
-
-        const propellantMass = stage.tanks.reduce(
-            (sum, tank) => sum + tank.fuel,
-            0
-        );
-
-        const massAfterBurn =
-            currentMass - propellantMass;
-
-        if (
-            massAfterBurn <= 0 ||
-            currentMass <= massAfterBurn
-        ) return;
-
-        const stageDeltaV =
-            stage.engine.isp *
-            G0 *
-            Math.log(currentMass / massAfterBurn);
-
-        totalDeltaV += stageDeltaV;
-
-        const dryMass =
-            stage.engine.mass * stage.engine.quantity +
-            stage.tanks.reduce(
-                (sum, tank) => sum + tank.mass,
-                0
-            ) +
-            (stage.decoupler ? stage.decoupler.mass : 0);
-
-        currentMass =
-            massAfterBurn - dryMass;
-
-        if (index === 0 && rocket.boosterEngine) {
-
-            currentMass -=
-                rocket.boosterEngine.mass *
-                rocket.boosterCount;
+        if (!stage.engine || stage.tanks.length === 0) {
+            continue;
         }
-    });
+
+        const engines = [{
+            thrust:
+                stage.engine.thrust *
+                stage.engine.quantity *
+                1000,
+            isp: stage.engine.isp,
+            fuel: stage.tanks.reduce(
+                (sum, tank) => sum + tank.fuel,
+                0
+            )
+        }];
+
+        const boosterFuel =
+            index === 0 &&
+            rocket.boosterCount > 0 &&
+            rocket.boosterEngine &&
+            rocket.boosterFuelTank
+                ? rocket.boosterFuelTank.fuel *
+                    rocket.boosterFuelTankCount *
+                    rocket.boosterCount
+                : 0;
+
+        if (boosterFuel > 0) {
+            engines.push({
+                thrust:
+                    rocket.boosterEngine.thrust *
+                    rocket.boosterCount *
+                    1000,
+                isp: rocket.boosterEngine.isp,
+                fuel: boosterFuel
+            });
+        }
+
+        while (engines.length > 0) {
+            const active = engines.filter(
+                engine =>
+                    engine.fuel > 0 &&
+                    engine.thrust > 0 &&
+                    engine.isp > 0
+            );
+
+            if (active.length === 0) {
+                break;
+            }
+
+            const totalThrust =
+                active.reduce(
+                    (sum, engine) => sum + engine.thrust,
+                    0
+                );
+
+            const totalFlow =
+                active.reduce(
+                    (sum, engine) =>
+                        sum + engine.thrust / (engine.isp * G0),
+                    0
+                );
+
+            const burnDuration = Math.min(
+                ...active.map(
+                    engine =>
+                        engine.fuel /
+                        (engine.thrust / (engine.isp * G0))
+                )
+            );
+
+            const massAfterBurn =
+                currentMass - totalFlow * burnDuration;
+
+            if (
+                massAfterBurn <= 0 ||
+                massAfterBurn >= currentMass
+            ) {
+                break;
+            }
+
+            totalDeltaV +=
+                (totalThrust / totalFlow) *
+                Math.log(currentMass / massAfterBurn);
+
+            currentMass = massAfterBurn;
+
+            for (const engine of active) {
+                engine.fuel = Math.max(
+                    0,
+                    engine.fuel -
+                    engine.thrust /
+                        (engine.isp * G0) *
+                        burnDuration
+                );
+            }
+
+            for (let engineIndex = engines.length - 1; engineIndex >= 0; engineIndex--) {
+                if (engines[engineIndex].fuel <= 0.000001) {
+                    engines.splice(engineIndex, 1);
+                }
+            }
+        }
+
+        if (index < rocket.stages.length - 1 && stage.decoupler) {
+            const stageDryMass =
+                stage.engine.mass * stage.engine.quantity +
+                stage.tanks.reduce(
+                    (sum, tank) => sum + tank.mass,
+                    0
+                ) +
+                stage.decoupler.mass;
+
+            currentMass -= stageDryMass;
+
+            if (index === 0 && rocket.boosterEngine) {
+                currentMass -=
+                    rocket.boosterEngine.mass *
+                        rocket.boosterCount +
+                    (rocket.boosterFuelTank?.mass ?? 0) *
+                        rocket.boosterFuelTankCount *
+                        rocket.boosterCount;
+            }
+        }
+    }
 
     return Math.max(0, totalDeltaV);
 }
@@ -1477,7 +1717,10 @@ function updateProceed() {
 
     const boostersValid =
         rocket.boosterCount === 0 ||
-        rocket.boosterEngine !== null;
+        (
+            rocket.boosterEngine !== null &&
+            rocket.boosterFuelTank !== null
+        );
 
     const budgetValid =
         spent <= BUDGET;
@@ -1515,7 +1758,7 @@ function updateProceed() {
             "alert alert-warning";
 
         status.textContent =
-            "Select an engine for your side boosters.";
+            "Select a booster engine and solid fuel tank.";
 
     } else if (!budgetValid) {
 
@@ -1653,7 +1896,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 twr >= MAX_TWR ||
                 (
                     rocket.boosterCount > 0 &&
-                    !rocket.boosterEngine
+                    (
+                        !rocket.boosterEngine ||
+                        !rocket.boosterFuelTank
+                    )
                 )
             ) return;
 
