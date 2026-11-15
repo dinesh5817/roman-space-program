@@ -3,8 +3,12 @@
 // CONSTANTS
 // ==================================================
 
-const BUDGET = 80;
+const BUDGET = 4000; // $4.00B internally represented as $4,000M
+
 const MIN_TWR = 1.08;
+const MAX_TWR = 1.70;
+const REQUIRED_DELTA_V = 9400; // m/s
+
 const PAYLOAD_MASS = 5000;
 const G0 = 9.81;
 
@@ -46,12 +50,12 @@ let hasUnsavedChanges = false;
 // ==================================================
 
 const engines = [
-    { name: "RS-25", cost: 12, mass: 3500, thrust: 1860, isp: 366, type: "sea" },
-    { name: "Raptor SL", cost: 8, mass: 1600, thrust: 2200, isp: 330, type: "sea" },
-    { name: "Raptor Vac", cost: 9, mass: 1600, thrust: 2300, isp: 380, type: "vac" },
-    { name: "RL10", cost: 6, mass: 300, thrust: 110, isp: 450, type: "vac" },
-    { name: "Solid Motor A", cost: 3, mass: 8000, thrust: 1200, isp: 250, type: "solid" },
-    { name: "Solid Motor B", cost: 4, mass: 10000, thrust: 1500, isp: 260, type: "solid" }
+    { name: "RS-25", cost: 250 / 15, mass: 3500, thrust: 1860, isp: 366, type: "sea" },
+    { name: "Sea-Level Raptors", cost: 200 / 15, mass: 1600, thrust: 2200, isp: 330, type: "sea" },
+    { name: "Vacuum Raptors", cost: 200 / 15, mass: 1600, thrust: 2300, isp: 380, type: "vac" },
+    { name: "RL10", cost: 180 / 15, mass: 300, thrust: 110, isp: 450, type: "vac" },
+    { name: "Solid Motor Alpha", cost: 90 / 15, mass: 8000, thrust: 1200, isp: 250, type: "solid" },
+    { name: "Solid Motor Beta", cost: 120 / 15, mass: 10000, thrust: 1500, isp: 260, type: "solid" }
 ];
 
 
@@ -60,10 +64,10 @@ const engines = [
 // ==================================================
 
 const tanks = [
-    { name: "Kerolox Tank", cost: 4, mass: 1200, fuel: 8000, fuelType: "liquid" },
-    { name: "Methalox Tank", cost: 5, mass: 1100, fuel: 7500, fuelType: "liquid" },
-    { name: "Hydrolox Tank", cost: 6, mass: 900, fuel: 6000, fuelType: "liquid" },
-    { name: "Solid Grain", cost: 2, mass: 500, fuel: 7000, fuelType: "solid" }
+    { name: "Kerolox Tank", cost: 120 / 15, mass: 3600, fuel: 8000, fuelType: "liquid" },
+    { name: "Methalox Tank", cost: 150 / 15, mass: 3300, fuel: 7500, fuelType: "liquid" },
+    { name: "Hydrolox Tank", cost: 180 / 15, mass: 2700, fuel: 6000, fuelType: "liquid" },
+    { name: "Solid Grain", cost: 60 / 15, mass: 1500, fuel: 7000, fuelType: "solid" }
 ];
 
 
@@ -72,7 +76,7 @@ const tanks = [
 // ==================================================
 
 const decouplers = [
-    { name: "Standard Decoupler", cost: 2, mass: 250 }
+    { name: "Standard Decoupler", cost: 60 / 15, mass: 250 }
 ];
 
 
@@ -81,10 +85,10 @@ const decouplers = [
 // ==================================================
 
 const radios = [
-    { name: "Basic", cost: 1, latency: 3.0 },
-    { name: "Standard", cost: 2, latency: 2.0 },
-    { name: "Good", cost: 3, latency: 1.5 },
-    { name: "Premium", cost: 5, latency: 1.0 }
+    { name: "Basic", cost: 30 / 15, latency: 3.0 },
+    { name: "Standard", cost: 60 / 15, latency: 2.0 },
+    { name: "Good", cost: 90 / 15, latency: 1.5 },
+    { name: "Premium", cost: 150 / 15, latency: 1.0 }
 ];
 
 
@@ -558,7 +562,7 @@ function renderCatalog(kind) {
         if (kind === "engine") {
 
             details = [
-                `Unit cost: $${item.cost}M`,
+                `Unit cost: $${item.cost.toFixed(2)}M`,
                 `Dry mass: ${item.mass.toLocaleString()} kg`,
                 `Thrust: ${item.thrust.toLocaleString()} kN`,
                 `Isp: ${item.isp} s`,
@@ -570,7 +574,7 @@ function renderCatalog(kind) {
         if (kind === "tank") {
 
             details = [
-                `Cost: $${item.cost}M`,
+                `Cost: $${item.cost.toFixed(2)}M`,
                 `Dry mass: ${item.mass.toLocaleString()} kg`,
                 `Propellant: ${item.fuel.toLocaleString()} kg`,
                 `Fuel type: ${item.fuelType}`
@@ -581,7 +585,7 @@ function renderCatalog(kind) {
         if (kind === "decoupler") {
 
             details = [
-                `Cost: $${item.cost}M`,
+                `Cost: $${item.cost.toFixed(2)}M`,
                 `Mass: ${item.mass.toLocaleString()} kg`
             ];
 
@@ -995,11 +999,11 @@ function renderBoosters() {
             const column = createCard(
                 engine.name,
                 [
-                    `Unit cost: $${engine.cost}M`,
+                    `Unit cost: $${engine.cost.toFixed(2)}M`,
                     `Unit mass: ${engine.mass.toLocaleString()} kg`,
                     `Unit thrust: ${engine.thrust.toLocaleString()} kN`,
                     `Isp: ${engine.isp} s`,
-                    `Total cost: $${(engine.cost * rocket.boosterCount).toFixed(1)}M`
+                    `Total cost: $${(engine.cost * rocket.boosterCount).toFixed(2)}M`
                 ],
                 rocket.boosterEngine?.name === engine.name
                     ? "Selected"
@@ -1037,7 +1041,7 @@ function renderRadios() {
         const column = createCard(
             radio.name,
             [
-                `Cost: $${radio.cost}M`,
+                `Cost: $${radio.cost.toFixed(2)}M`,
                 `Telemetry latency: ${radio.latency.toFixed(1)} seconds`
             ],
             rocket.radio?.name === radio.name
@@ -1239,11 +1243,17 @@ function updateMetrics() {
 
     const deltaV = calculateDeltaV();
 
+    // Money is stored internally in millions.
+    // Display money in billions.
+
     document.getElementById("spentAmount").textContent =
-        spent.toFixed(1);
+        (spent / 1000).toFixed(2);
 
     document.getElementById("idealDv").textContent =
         Math.round(deltaV).toLocaleString();
+
+    document.getElementById("requiredDv").textContent =
+        REQUIRED_DELTA_V.toLocaleString();
 
     document.getElementById("padTwr").textContent =
         twr.toFixed(2);
@@ -1262,7 +1272,7 @@ function updateMetrics() {
     document.getElementById("budgetStatus").textContent =
         spent > BUDGET
             ? "Budget exceeded"
-            : `$${(BUDGET - spent).toFixed(1)}M remaining`;
+            : `$${((BUDGET - spent) / 1000).toFixed(2)}B remaining`;
 
 
     // TWR
@@ -1272,18 +1282,22 @@ function updateMetrics() {
 
     twrBox.classList.toggle(
         "twr-valid",
-        twr >= MIN_TWR
+        twr >= MIN_TWR &&
+        twr < MAX_TWR
     );
 
     twrBox.classList.toggle(
         "twr-invalid",
-        twr < MIN_TWR
+        twr < MIN_TWR ||
+        twr >= MAX_TWR
     );
 
     document.getElementById("twrStatus").textContent =
-        twr >= MIN_TWR
-            ? "Pad TWR requirement satisfied"
-            : `Minimum required: ${MIN_TWR.toFixed(2)}`;
+        twr < MIN_TWR
+            ? `Minimum required: ${MIN_TWR.toFixed(2)}`
+            : twr >= MAX_TWR
+                ? `Maximum launch TWR: ${MAX_TWR.toFixed(2)}`
+                : "Pad TWR within launch limits";
 
 }
 
@@ -1304,9 +1318,12 @@ function updateProceed() {
         rocket.boosterCount === 0 ||
         rocket.boosterEngine !== null;
 
-    const budgetValid = spent <= BUDGET;
+    const budgetValid =
+        spent <= BUDGET;
 
-    const twrValid = twr >= MIN_TWR;
+    const twrValid =
+        twr >= MIN_TWR &&
+        twr < MAX_TWR;
 
     const canProceed =
         validation.valid &&
@@ -1325,34 +1342,42 @@ function updateProceed() {
 
     if (!validation.valid) {
 
-        status.className = "alert alert-secondary";
+        status.className =
+            "alert alert-secondary";
 
-        status.textContent = validation.reason;
+        status.textContent =
+            validation.reason;
 
     } else if (!boostersValid) {
 
-        status.className = "alert alert-warning";
+        status.className =
+            "alert alert-warning";
 
         status.textContent =
             "Select an engine for your side boosters.";
 
     } else if (!budgetValid) {
 
-        status.className = "alert alert-danger";
+        status.className =
+            "alert alert-danger";
 
         status.textContent =
-            "Your vehicle exceeds the $80M budget.";
+            "Your vehicle exceeds the $4.00B budget.";
 
     } else if (!twrValid) {
 
-        status.className = "alert alert-warning";
+        status.className =
+            "alert alert-warning";
 
         status.textContent =
-            `Pad TWR must be at least ${MIN_TWR.toFixed(2)}.`;
+            twr < MIN_TWR
+                ? `Pad TWR must be at least ${MIN_TWR.toFixed(2)}.`
+                : `Pad TWR must be below ${MAX_TWR.toFixed(2)}.`;
 
     } else {
 
-        status.className = "alert alert-success";
+        status.className =
+            "alert alert-success";
 
         status.textContent =
             "All stages validated. Ready for launch window selection.";
@@ -1451,10 +1476,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const validation = validateBuild();
 
+            const twr =
+                calculateTWR();
+
             if (
                 !validation.valid ||
                 getTotalCost() > BUDGET ||
-                calculateTWR() < MIN_TWR ||
+                twr < MIN_TWR ||
+                twr >= MAX_TWR ||
                 (
                     rocket.boosterCount > 0 &&
                     !rocket.boosterEngine
@@ -1468,11 +1497,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 metrics: {
 
-                    budget: getTotalCost(),
+                    budget:
+                        getTotalCost(),
 
-                    padTwr: calculateTWR(),
+                    padTwr:
+                        twr,
 
-                    idealDv: calculateDeltaV()
+                    idealDv:
+                        calculateDeltaV()
 
                 }
 

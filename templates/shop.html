@@ -11,18 +11,18 @@
     <!-- TELEMETRY -->
     <div class="row g-3 mb-4">
 
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="metric-box" id="budgetDisplay">
                 <h6>MISSION BUDGET</h6>
                 <div class="metric-value">
-                    $<span id="spentAmount">0</span>M
-                    <span class="metric-divider">/ $80M</span>
+                    $<span id="spentAmount">0</span>B
+                    <span class="metric-divider">/ $4B</span>
                 </div>
                 <small id="budgetStatus">Budget available</small>
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="metric-box">
                 <h6>IDEAL DELTA-V</h6>
                 <div class="metric-value">
@@ -33,7 +33,18 @@
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="metric-box">
+                <h6>REQUIRED DELTA-V</h6>
+                <div class="metric-value">
+                    <span id="requiredDv">9,400</span>
+                    <span class="metric-divider">m/s</span>
+                </div>
+                <small>Mission requirement</small>
+            </div>
+        </div>
+
+        <div class="col-md-3">
             <div class="metric-box" id="twrDisplay">
                 <h6>PAD TWR</h6>
                 <div class="metric-value" id="padTwr">0.00</div>

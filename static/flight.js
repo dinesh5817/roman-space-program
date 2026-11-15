@@ -1,54 +1,10 @@
-
 /* =========================================================
    ROMAN SPACE PROGRAM
    FLIGHT OPERATIONS - 2D ASCENT
 
-   GAME SIMULATION MODEL
-
-   Physics:
-   - 2D Cartesian motion in a flat local frame
-   - Variable gravitational magnitude
-   - Exponential atmospheric density
-   - 2D aerodynamic drag
-   - Rocket equation for remaining delta-v
-   - Propellant mass flow from thrust and ISP
-   - Midpoint mass approximation
-   - Fixed-step integration
-
-   Guidance:
-   - State-dependent pitch guidance
-   - Uses altitude and velocity components
-   - Corrects horizontal/vertical velocity imbalance
-   - Responds to TWR and available thrust
-   - Dynamic-pressure attitude disturbance
-   - Critical dynamic-pressure failure
-
-   Communication:
-   - Radio command latency
-   - Command link failure during critical Max Q event
-
-   UNITS:
-   Mass: kg
-   Distance: m
-   Velocity: m/s
-   Acceleration: m/s²
-   Force: N
-   Pressure: Pa
-   Time: s
-   ISP: s
-
-   VEHICLE CONFIGURATION:
-   Engine thrust: kN
-   Booster thrust: kN
-   Mass: kg
-   Fuel: kg
-   ISP: seconds
-
-   IMPORTANT:
-   This is a simplified game simulation.
-   It does not calculate real orbital mechanics.
+   Simplified 2D Cartesian game simulation.
+   Does not calculate real orbital mechanics.
 ========================================================= */
-
 
 /* =========================================================
    1. PHYSICAL CONSTANTS
@@ -78,6 +34,15 @@ const FIXED_PHYSICS_STEP = 0.02;
 const MAX_CATCH_UP_STEPS_PER_FRAME = 500;
 
 const LEO_DISPLAY_ALTITUDE = 200000;
+
+
+/* =========================================================
+   1A. LAUNCH SEQUENCE
+========================================================= */
+
+const LAUNCH_COUNTDOWN_DURATION = 60;
+const LAUNCH_AUTHORIZATION_GATE = 33;
+const LAUNCH_HOLD_DURATION = 30;
 
 
 /* =========================================================
@@ -152,6 +117,41 @@ const GUIDANCE_MINIMUM_CONTROL_SPEED = 100;
 
 
 /* =========================================================
+   3A. VERTICAL ASCENT PROTECTION
+========================================================= */
+
+/*
+   The vehicle must retain enough vertical thrust to
+   counter gravity and maintain a positive vertical ascent.
+
+   A small support margin is maintained rather than
+   allowing guidance to pitch over at the exact TWR limit.
+*/
+
+const VERTICAL_SUPPORT_MARGIN = 1.05;
+
+const VERTICAL_VELOCITY_RECOVERY_THRESHOLD = 500;
+
+const VERTICAL_VELOCITY_CRITICAL_THRESHOLD = 150;
+
+const VERTICAL_ACCELERATION_RECOVERY_THRESHOLD = -0.5;
+
+const VERTICAL_RECOVERY_PITCH_LIMIT = 15;
+
+const VERTICAL_RECOVERY_RESPONSE_MULTIPLIER = 2.0;
+
+
+/* =========================================================
+   3B. LEO MISSION COMPLETION CONDITIONS
+========================================================= */
+
+const LEO_MIN_HORIZONTAL_SPEED =
+    GUIDANCE_TARGET_HORIZONTAL_SPEED;
+
+const LEO_MAX_VERTICAL_SPEED = 1000;
+
+
+/* =========================================================
    4. MAX Q GAMEPLAY LIMITS
 ========================================================= */
 
@@ -163,6 +163,13 @@ const MAX_Q_DISTURBANCE_BIAS = 12;
 const MAX_Q_DISTURBANCE_OSCILLATION = 5;
 
 const MAX_Q_DISTURBANCE_FREQUENCY = 2.4;
+
+const MAX_Q_TWR_LIMIT = 1.50;
+
+const MAX_Q_TWR_BACKLASH_START = 1.50;
+const MAX_Q_TWR_BACKLASH_FULL = 2.00;
+
+const MAX_Q_TWR_DISTURBANCE_MULTIPLIER = 1.75;
 
 
 /* =========================================================
@@ -295,6 +302,10 @@ function buildVehicleConfiguration(rocket) {
     const boosterEngine =
         rocket.boosterEngine || null;
 
+    if (boosterCount > 0 && !boosterEngine) {
+        return null;
+    }
+
     const boosterMass =
         boosterEngine && boosterCount > 0
             ? Number(boosterEngine.mass ?? 0) *
@@ -306,11 +317,6 @@ function buildVehicleConfiguration(rocket) {
             ? Number(boosterEngine.thrust ?? 0) *
                 boosterCount * 1000
             : 0;
-
-    /*
-       boosterEngine.fuel is total fuel for
-       the complete booster set.
-    */
 
     const boosterFuel =
         boosterEngine && boosterCount > 0
@@ -343,17 +349,16 @@ function buildVehicleConfiguration(rocket) {
 
             if (
                 !Number.isFinite(quantityValue) ||
-                quantityValue < 1
+                quantityValue < 1 ||
+                !Number.isInteger(quantityValue)
             ) {
                 return null;
             }
 
-            const quantity =
-                Math.floor(quantityValue);
+            const quantity = quantityValue;
 
             const engineMass =
-                Number(engine.mass ?? 0) *
-                quantity;
+                Number(engine.mass ?? 0) * quantity;
 
             const engineThrust =
                 Number(engine.thrust ?? 0) *
@@ -453,8 +458,10 @@ function buildVehicleConfiguration(rocket) {
 
     if (
         boosterCount > 0 &&
-        boosterThrust > 0 &&
-        boosterISP <= 0
+        (
+            boosterThrust <= 0 ||
+            boosterISP <= 0
+        )
     ) {
         return null;
     }
@@ -534,6 +541,14 @@ let physicsAccumulator = 0;
 let resultShown = false;
 
 
+let launchSequence = {
+    phase: "COUNTDOWN",
+    elapsed: 0,
+    holdElapsed: 0,
+    goReceived: false
+};
+
+
 const flightState = {
     time: 0,
 
@@ -548,6 +563,10 @@ const flightState = {
     speed: 0,
 
     acceleration: 0,
+
+    verticalAcceleration: 0,
+
+    horizontalAcceleration: 0,
 
     mass: 0,
 
@@ -607,7 +626,331 @@ const flightState = {
 
 
 /* =========================================================
-   9. STAGE AND PROPULSION HELPERS
+   9. LAUNCH SEQUENCE UI
+========================================================= */
+
+function createLaunchSequenceUI() {
+    const controlsPanel =
+        document.getElementById("controls-panel");
+
+    if (!controlsPanel) {
+        console.error(
+            "Launch sequence UI could not be created: " +
+            "#controls-panel was not found."
+        );
+
+        return;
+    }
+
+    if (
+        document.getElementById("launch-sequence-panel")
+    ) {
+        return;
+    }
+
+    const panel = document.createElement("div");
+
+    panel.id = "launch-sequence-panel";
+
+    panel.className =
+        "launch-sequence text-center p-4 mb-4";
+
+    panel.style.border = "1px solid rgba(0, 200, 255, 0.35)";
+    panel.style.borderRadius = "12px";
+    panel.style.background = "rgba(0, 20, 35, 0.65)";
+
+    panel.innerHTML = `
+        <p class="telemetry-label mb-2">
+            LAUNCH OPERATIONS
+        </p>
+
+        <h2
+            id="launch-countdown"
+            class="display-4 fw-bold text-info"
+        >
+            T-00:01:00
+        </h2>
+
+        <p
+            id="launch-sequence-status"
+            class="text-light mb-3"
+        >
+            AWAITING GO FOR LAUNCH
+        </p>
+
+        <button
+            type="button"
+            id="goForLaunch"
+            class="btn btn-success btn-lg"
+        >
+            GO FOR LAUNCH
+        </button>
+    `;
+
+    controlsPanel.prepend(panel);
+
+    document.getElementById("goForLaunch")
+        ?.addEventListener(
+            "click",
+            giveGoForLaunch
+        );
+}
+
+
+function formatLaunchCountdown(seconds) {
+    const total = Math.max(
+        0,
+        Math.ceil(seconds)
+    );
+
+    const minutes = Math.floor(total / 60);
+
+    const remaining = total % 60;
+
+    return (
+        `T-${String(minutes).padStart(2, "0")}:` +
+        `${String(remaining).padStart(2, "0")}`
+    );
+}
+
+
+function updateLaunchDisplay() {
+    const countdown =
+        document.getElementById("launch-countdown");
+
+    const status =
+        document.getElementById(
+            "launch-sequence-status"
+        );
+
+    const button =
+        document.getElementById("goForLaunch");
+
+    if (!countdown || !status || !button) {
+        return;
+    }
+
+    button.disabled = false;
+
+    switch (launchSequence.phase) {
+        case "COUNTDOWN": {
+            const remaining =
+                LAUNCH_COUNTDOWN_DURATION -
+                launchSequence.elapsed;
+
+            countdown.textContent =
+                formatLaunchCountdown(remaining);
+
+            if (launchSequence.goReceived) {
+                status.textContent =
+                    "GO FOR LAUNCH AUTHORIZED";
+
+                button.textContent =
+                    "LAUNCH AUTHORIZED";
+
+                button.disabled = true;
+
+            } else {
+                status.textContent =
+                    "AWAITING GO FOR LAUNCH";
+
+                button.textContent =
+                    "GO FOR LAUNCH";
+            }
+
+            break;
+        }
+
+        case "HOLD": {
+            const holdRemaining =
+                Math.max(
+                    0,
+                    LAUNCH_HOLD_DURATION -
+                    launchSequence.holdElapsed
+                );
+
+            countdown.textContent = "T-00:33";
+
+            status.textContent =
+                `HOLD: AWAITING GO FOR LAUNCH ` +
+                `(${Math.ceil(holdRemaining)}s REMAINING)`;
+
+            button.textContent =
+                "GO FOR LAUNCH";
+
+            break;
+        }
+
+        case "FLIGHT":
+            countdown.textContent =
+                "T+00:00:00";
+
+            status.textContent =
+                "LIFTOFF: FLIGHT SEQUENCE ACTIVE";
+
+            button.textContent =
+                "LAUNCH INITIATED";
+
+            button.disabled = true;
+
+            break;
+
+        case "ABORTED":
+            countdown.textContent =
+                "LAUNCH ABORTED";
+
+            status.textContent =
+                "MISSION ABORTED: NO LAUNCH AUTHORIZATION";
+
+            button.textContent =
+                "MISSION ABORTED";
+
+            button.disabled = true;
+
+            break;
+    }
+}
+
+
+/* =========================================================
+   9A. GO FOR LAUNCH AUTHORIZATION
+========================================================= */
+
+function giveGoForLaunch() {
+    if (
+        flightState.over ||
+        launchSequence.phase === "FLIGHT" ||
+        launchSequence.phase === "ABORTED" ||
+        launchSequence.goReceived
+    ) {
+        return;
+    }
+
+    launchSequence.goReceived = true;
+
+    if (launchSequence.phase === "HOLD") {
+        launchSequence.phase = "COUNTDOWN";
+
+        launchSequence.elapsed =
+            LAUNCH_COUNTDOWN_DURATION -
+            LAUNCH_AUTHORIZATION_GATE;
+
+        launchSequence.holdElapsed = 0;
+
+        lastPhysicsTime = null;
+
+        physicsAccumulator = 0;
+    }
+
+    updateLaunchDisplay();
+}
+
+
+/* =========================================================
+   9B. LAUNCH ABORT
+========================================================= */
+
+function abortLaunchSequence() {
+    if (
+        flightState.over ||
+        launchSequence.phase === "ABORTED"
+    ) {
+        return;
+    }
+
+    launchSequence.phase = "ABORTED";
+
+    flightState.over = true;
+
+    flightState.result = "intentional-abort";
+
+    pendingCommands = [];
+
+    lastCommandMessage =
+        "LAUNCH ABORTED: GO FOR LAUNCH NOT RECEIVED";
+
+    updateLaunchDisplay();
+
+    showResult();
+}
+
+
+/* =========================================================
+   9C. COUNTDOWN AND HOLD TIMING
+========================================================= */
+
+function updateLaunchSequence(realElapsed) {
+    if (
+        launchSequence.phase === "FLIGHT" ||
+        launchSequence.phase === "ABORTED"
+    ) {
+        return;
+    }
+
+    if (launchSequence.phase === "COUNTDOWN") {
+        launchSequence.elapsed += realElapsed;
+
+        const authorizationGate =
+            LAUNCH_COUNTDOWN_DURATION -
+            LAUNCH_AUTHORIZATION_GATE;
+
+        if (
+            launchSequence.elapsed >= authorizationGate &&
+            !launchSequence.goReceived
+        ) {
+            launchSequence.elapsed =
+                authorizationGate;
+
+            launchSequence.phase = "HOLD";
+
+            launchSequence.holdElapsed = 0;
+
+            updateLaunchDisplay();
+
+            return;
+        }
+
+        if (
+            launchSequence.elapsed >=
+            LAUNCH_COUNTDOWN_DURATION
+        ) {
+            launchSequence.elapsed =
+                LAUNCH_COUNTDOWN_DURATION;
+
+            launchSequence.phase = "FLIGHT";
+
+            physicsAccumulator = 0;
+
+            lastPhysicsTime = null;
+
+            updateLaunchDisplay();
+
+            return;
+        }
+    }
+
+    else if (launchSequence.phase === "HOLD") {
+        launchSequence.holdElapsed += realElapsed;
+
+        if (
+            launchSequence.holdElapsed >=
+            LAUNCH_HOLD_DURATION
+        ) {
+            launchSequence.holdElapsed =
+                LAUNCH_HOLD_DURATION;
+
+            abortLaunchSequence();
+
+            return;
+        }
+    }
+
+    updateLaunchDisplay();
+}
+
+
+/* =========================================================
+   10. STAGE AND PROPULSION HELPERS
 ========================================================= */
 
 function getCurrentStage() {
@@ -700,7 +1043,7 @@ function calculateVehicleMass() {
 
 
 /* =========================================================
-   10. ENVIRONMENT
+   11. ENVIRONMENT
 ========================================================= */
 
 function calculateGravity(altitude) {
@@ -757,7 +1100,7 @@ function calculateTWR() {
 
 
 /* =========================================================
-   11. STATE-DEPENDENT PITCH GUIDANCE
+   12. STATE-DEPENDENT PITCH GUIDANCE
 ========================================================= */
 
 function calculateCommandedPitch() {
@@ -849,11 +1192,11 @@ function calculateMaxQDisturbance() {
         1
     );
 
-    const bias =
+    const baseBias =
         MAX_Q_DISTURBANCE_BIAS *
         severity;
 
-    const oscillation =
+    const baseOscillation =
         Math.sin(
             flightState.time *
             MAX_Q_DISTURBANCE_FREQUENCY
@@ -861,9 +1204,92 @@ function calculateMaxQDisturbance() {
         MAX_Q_DISTURBANCE_OSCILLATION *
         severity;
 
-    return bias + oscillation;
+    const twrBacklash =
+        clamp(
+            (
+                flightState.twr -
+                MAX_Q_TWR_BACKLASH_START
+            ) / (
+                MAX_Q_TWR_BACKLASH_FULL -
+                MAX_Q_TWR_BACKLASH_START
+            ),
+            0,
+            1
+        );
+
+    const disturbanceMultiplier =
+        1 +
+        twrBacklash *
+        (
+            MAX_Q_TWR_DISTURBANCE_MULTIPLIER -
+            1
+        );
+
+    return (
+        baseBias +
+        baseOscillation
+    ) * disturbanceMultiplier;
 }
 
+
+/* =========================================================
+   12A. VERTICAL SUPPORT PITCH LIMIT
+========================================================= */
+
+/*
+   TWR is total thrust divided by vehicle weight.
+
+   Vertical thrust is:
+
+       T_vertical = T * cos(pitch)
+
+   Therefore:
+
+       Vertical TWR = TWR * cos(pitch)
+
+   When the vehicle has insufficient vertical support,
+   the permitted pitch angle is reduced.
+
+   This prevents guidance from continuing to pitch
+   horizontally when the available thrust cannot sustain
+   the vertical component of the ascent.
+*/
+
+function calculateVerticalSupportPitchLimit(currentTWR) {
+    if (
+        !Number.isFinite(currentTWR) ||
+        currentTWR <= 0
+    ) {
+        return GUIDANCE_MIN_PITCH;
+    }
+
+    if (currentTWR <= VERTICAL_SUPPORT_MARGIN) {
+        return GUIDANCE_MIN_PITCH;
+    }
+
+    const requiredVerticalShare =
+        VERTICAL_SUPPORT_MARGIN / currentTWR;
+
+    const maximumPitchRadians =
+        Math.acos(
+            clamp(
+                requiredVerticalShare,
+                0,
+                1
+            )
+        );
+
+    return clamp(
+        radiansToDegrees(maximumPitchRadians),
+        GUIDANCE_MIN_PITCH,
+        GUIDANCE_MAX_PITCH
+    );
+}
+
+
+/* =========================================================
+   12B. REVISED PITCH GUIDANCE
+========================================================= */
 
 function updatePitchGuidance(dt) {
     const s = flightState;
@@ -873,36 +1299,107 @@ function updatePitchGuidance(dt) {
 
     s.commandedPitch = targetPitch;
 
+    const currentTWR =
+        calculateTWR();
+
     const disturbance =
         calculateMaxQDisturbance();
 
     s.maxQDisturbance = disturbance;
 
-    const disturbedTargetPitch =
-        clamp(
-            targetPitch + disturbance,
-            0,
-            89
-        );
-
-    const currentTWR =
-        calculateTWR();
+    /*
+       Start with normal guidance plus Max Q disturbance.
+    */
 
     let finalTargetPitch =
-        disturbedTargetPitch;
+        clamp(
+            targetPitch + disturbance,
+            GUIDANCE_MIN_PITCH,
+            GUIDANCE_MAX_PITCH
+        );
+
+    /*
+       Apply vertical thrust support limit.
+
+       If TWR is low, the rocket must remain closer
+       to vertical to retain enough vertical thrust.
+    */
+
+    const supportPitchLimit =
+        calculateVerticalSupportPitchLimit(
+            currentTWR
+        );
+
+    finalTargetPitch = Math.min(
+        finalTargetPitch,
+        supportPitchLimit
+    );
+
+    /*
+       Recovery mode.
+
+       If vertical velocity is low or vertical
+       acceleration is strongly negative, reduce
+       pitch aggressively.
+
+       This is different from the previous implementation,
+       which merely stopped further pitch increases.
+    */
+
+    const verticalVelocityLow =
+        s.verticalVelocity <
+        VERTICAL_VELOCITY_RECOVERY_THRESHOLD;
+
+    const verticalVelocityCritical =
+        s.verticalVelocity <
+        VERTICAL_VELOCITY_CRITICAL_THRESHOLD;
+
+    const verticalAccelerationCritical =
+        s.verticalAcceleration <
+        VERTICAL_ACCELERATION_RECOVERY_THRESHOLD;
 
     if (
-        currentTWR < 1 &&
-        s.verticalVelocity < 500
+        verticalVelocityLow ||
+        verticalVelocityCritical ||
+        verticalAccelerationCritical
     ) {
         finalTargetPitch = Math.min(
             finalTargetPitch,
-            s.pitch
+            VERTICAL_RECOVERY_PITCH_LIMIT
         );
     }
 
+    /*
+       If the rocket is already descending, command
+       the most vertical possible attitude.
+
+       This cannot create thrust that the vehicle does
+       not have, but it avoids wasting available thrust
+       on horizontal acceleration during recovery.
+    */
+
+    if (s.verticalVelocity < 0) {
+        finalTargetPitch = GUIDANCE_MIN_PITCH;
+    }
+
+    /*
+       Apply a faster response when recovering.
+    */
+
+    const recovering =
+        verticalVelocityLow ||
+        verticalAccelerationCritical ||
+        s.verticalVelocity < 0;
+
+    const responseMultiplier =
+        recovering
+            ? VERTICAL_RECOVERY_RESPONSE_MULTIPLIER
+            : 1;
+
     const maximumChange =
-        GUIDANCE_MAX_PITCH_RATE * dt;
+        GUIDANCE_MAX_PITCH_RATE *
+        responseMultiplier *
+        dt;
 
     const responsivePitch =
         moveTowards(
@@ -913,7 +1410,9 @@ function updatePitchGuidance(dt) {
 
     const responseFactor =
         clamp(
-            GUIDANCE_RESPONSE_RATE * dt,
+            GUIDANCE_RESPONSE_RATE *
+            responseMultiplier *
+            dt,
             0,
             1
         );
@@ -926,8 +1425,8 @@ function updatePitchGuidance(dt) {
 
     s.pitch = clamp(
         s.pitch,
-        0,
-        89
+        GUIDANCE_MIN_PITCH,
+        GUIDANCE_MAX_PITCH
     );
 
     s.pitchDeviation =
@@ -939,7 +1438,7 @@ function updatePitchGuidance(dt) {
 
 
 /* =========================================================
-   12. REMAINING IDEAL DELTA-V
+   13. REMAINING IDEAL DELTA-V
 ========================================================= */
 
 function calculateRemainingDeltaV() {
@@ -1092,16 +1591,8 @@ function calculateRemainingDeltaV() {
 
 
 /* =========================================================
-   13. USEFUL DELTA-V AND LEO CHECK
+   14. USEFUL DELTA-V AND LEO CHECK
 ========================================================= */
-
-/*
-   Useful delta-v is the engine contribution
-   minus accumulated gravity and drag losses.
-
-   This is the same value displayed by the
-   USEFUL ΔV ACCUMULATED gauge.
-*/
 
 function calculateUsefulDeltaV() {
     return (
@@ -1121,11 +1612,35 @@ function calculateLEODeltaVRemaining() {
 }
 
 
+function hasReachedLEOThreshold() {
+    const s = flightState;
+
+    const altitudeReached =
+        s.altitude >= LEO_DISPLAY_ALTITUDE;
+
+    const horizontalSpeedReached =
+        s.horizontalVelocity >=
+        LEO_MIN_HORIZONTAL_SPEED;
+
+    const verticalSpeedAcceptable =
+        s.verticalVelocity >= 0 &&
+        s.verticalVelocity <=
+        LEO_MAX_VERTICAL_SPEED;
+
+    return (
+        altitudeReached &&
+        horizontalSpeedReached &&
+        verticalSpeedAcceptable
+    );
+}
+
+
 function completeLEOCheck() {
-    if (
-        flightState.over ||
-        flightState.leoDeltaVRemaining > 0
-    ) {
+    if (flightState.over) {
+        return;
+    }
+
+    if (!hasReachedLEOThreshold()) {
         return;
     }
 
@@ -1133,69 +1648,20 @@ function completeLEOCheck() {
         calculateRemainingDeltaV();
 
     const enoughForL2 =
-        flightState.deltaVRemaining >
+        flightState.deltaVRemaining >=
         L2_INSERTION_DELTA_V_REQUIRED;
-
-    const missionResult = {
-        status:
-            enoughForL2
-                ? "success"
-                : "incomplete",
-
-        destination: "Sun-Earth L2",
-
-        message: enoughForL2
-            ? "LEO mission threshold achieved. The spacecraft is coasting towards Sun-Earth L2."
-            : "The spacecraft reached the LEO mission threshold, but does not have enough remaining delta-v for the L2 transfer.",
-
-        arrival: enoughForL2
-            ? "Expected arrival in less than 4 months."
-            : "L2 transfer cannot be completed with the remaining delta-v.",
-
-        missionElapsedTime:
-            flightState.time,
-
-        remainingDeltaV:
-            flightState.deltaVRemaining,
-
-        l2DeltaVRequired:
-            L2_INSERTION_DELTA_V_REQUIRED,
-
-        maxQ:
-            flightState.maxQ,
-
-        maxAltitude:
-            flightState.maxAltitude,
-
-        horizontalVelocity:
-            flightState.horizontalVelocity,
-
-        verticalVelocity:
-            flightState.verticalVelocity,
-
-        pitch:
-            flightState.pitch
-    };
-
-    sessionStorage.setItem(
-        "romanMissionResult",
-        JSON.stringify(missionResult)
-    );
 
     flightState.over = true;
 
-    flightState.result = enoughForL2
-        ? "l2-success"
-        : "leo-success-l2-insufficient";
-
-    window.location.assign(
-        RESULT_PAGE_URL
-    );
+    flightState.result =
+        enoughForL2
+            ? "l2-success"
+            : "leo-success-l2-insufficient";
 }
 
 
 /* =========================================================
-   14. MAX Q TRACKING AND FAILURE
+   15. MAX Q TRACKING AND FAILURE
 ========================================================= */
 
 function checkMaxQ() {
@@ -1238,7 +1704,7 @@ function triggerMaxQFailure() {
 
 
 /* =========================================================
-   15. TELEMETRY GAUGES
+   16. TELEMETRY GAUGES
 ========================================================= */
 
 function updateGauge(
@@ -1296,10 +1762,30 @@ function updateMissionHealth() {
             "SIGNAL LOST";
 
     } else if (
+        flightState.dynamicPressure >= MAX_Q_FAILURE
+    ) {
+        status.textContent =
+            "CRITICAL MAX Q";
+
+    } else if (
+        flightState.dynamicPressure >= MAX_Q_SEVERE &&
+        flightState.twr > MAX_Q_TWR_LIMIT
+    ) {
+        status.textContent =
+            "SEVERE MAX Q / HIGH TWR";
+
+    } else if (
         flightState.dynamicPressure >= MAX_Q_SEVERE
     ) {
         status.textContent =
             "SEVERE MAX Q DISTURBANCE";
+
+    } else if (
+        flightState.dynamicPressure >= MAX_Q_CAUTION &&
+        flightState.twr > MAX_Q_TWR_LIMIT
+    ) {
+        status.textContent =
+            "MAX Q / HIGH TWR BACKLASH";
 
     } else if (
         flightState.dynamicPressure >= MAX_Q_CAUTION
@@ -1320,6 +1806,12 @@ function updateMissionHealth() {
         status.textContent =
             "DESCENT DETECTED";
 
+    } else if (
+        flightState.verticalAcceleration < 0
+    ) {
+        status.textContent =
+            "VERTICAL ACCELERATION NEGATIVE";
+
     } else {
         status.textContent =
             "ASCENT GUIDANCE ACTIVE";
@@ -1329,13 +1821,6 @@ function updateMissionHealth() {
 
 function updateTelemetry() {
     const s = flightState;
-
-    /*
-       TOTAL VELOCITY
-
-       The magnitude includes both horizontal
-       and vertical velocity components.
-    */
 
     s.speed = calculateTotalSpeed(
         s.horizontalVelocity,
@@ -1379,16 +1864,6 @@ function updateTelemetry() {
             s.leoDeltaVRemaining
         )
     );
-
-    /*
-       USEFUL DELTA-V ACCUMULATED
-
-       Uses the same calculation as the
-       LEO remaining delta-v requirement.
-
-       Negative values are displayed numerically,
-       but the progress ring stays at zero.
-    */
 
     const usefulDeltaV =
         calculateUsefulDeltaV();
@@ -1449,6 +1924,16 @@ function updateTelemetry() {
     );
 
     setText(
+        "vertical-acceleration-value",
+        `${s.verticalAcceleration.toFixed(2)} m/s²`
+    );
+
+    setText(
+        "horizontal-acceleration-value",
+        `${s.horizontalAcceleration.toFixed(2)} m/s²`
+    );
+
+    setText(
         "vertical-velocity-value",
         `${formatNumber(s.verticalVelocity)} m/s`
     );
@@ -1471,6 +1956,16 @@ function updateTelemetry() {
     setText(
         "drag-value",
         `${formatNumber(s.dragForce)} N`
+    );
+
+    setText(
+        "pitch-value",
+        `${s.pitch.toFixed(1)}°`
+    );
+
+    setText(
+        "pitch-deviation-value",
+        `${s.pitchDeviation.toFixed(1)}°`
     );
 
     const throttleFill =
@@ -1499,16 +1994,26 @@ function updateTelemetry() {
             qStatus.textContent = "NORMAL";
 
         } else if (
-            s.dynamicPressure < MAX_Q_SEVERE
+            s.dynamicPressure < MAX_Q_SEVERE &&
+            s.twr <= MAX_Q_TWR_LIMIT
         ) {
             qStatus.textContent =
                 "ATTITUDE DISTURBANCE";
 
         } else if (
+            s.dynamicPressure < MAX_Q_SEVERE &&
+            s.twr > MAX_Q_TWR_LIMIT
+        ) {
+            qStatus.textContent =
+                "HIGH TWR BACKLASH";
+
+        } else if (
             s.dynamicPressure < MAX_Q_FAILURE
         ) {
             qStatus.textContent =
-                "SEVERE PRESSURE";
+                s.twr > MAX_Q_TWR_LIMIT
+                    ? "SEVERE / HIGH TWR"
+                    : "SEVERE PRESSURE";
 
         } else {
             qStatus.textContent =
@@ -1549,7 +2054,7 @@ function updateTelemetry() {
 
 
 /* =========================================================
-   16. CONTROL UI
+   17. CONTROL UI
 ========================================================= */
 
 function updateControlUI() {
@@ -1597,13 +2102,15 @@ function updateControlUI() {
 
         button.disabled =
             flightState.over ||
-            flightState.communicationLost;
+            flightState.communicationLost ||
+            launchSequence.phase !== "FLIGHT";
     }
 
     if (armButton) {
         armButton.disabled =
             flightState.over ||
             flightState.communicationLost ||
+            launchSequence.phase !== "FLIGHT" ||
             !canArmNextStage() ||
             flightState.stageArmed ||
             armPending;
@@ -1613,6 +2120,7 @@ function updateControlUI() {
         separateButton.disabled =
             flightState.over ||
             flightState.communicationLost ||
+            launchSequence.phase !== "FLIGHT" ||
             !flightState.stageArmed ||
             separationPending;
     }
@@ -1621,6 +2129,10 @@ function updateControlUI() {
         if (flightState.communicationLost) {
             stageState.textContent =
                 "COMMAND LINK LOST";
+
+        } else if (launchSequence.phase !== "FLIGHT") {
+            stageState.textContent =
+                "AWAITING LIFTOFF";
 
         } else if (flightState.stageArmed) {
             stageState.textContent =
@@ -1663,7 +2175,7 @@ function updateControlUI() {
 
 
 /* =========================================================
-   17. RADIO COMMAND SYSTEM
+   18. RADIO COMMAND SYSTEM
 ========================================================= */
 
 function sendCommand(
@@ -1673,7 +2185,8 @@ function sendCommand(
 ) {
     if (
         flightState.over ||
-        flightState.communicationLost
+        flightState.communicationLost ||
+        launchSequence.phase !== "FLIGHT"
     ) {
         return;
     }
@@ -1830,7 +2343,7 @@ function processPendingCommands() {
 
 
 /* =========================================================
-   18. STAGE SEPARATION
+   19. STAGE SEPARATION
 ========================================================= */
 
 function separateCurrentStage() {
@@ -1843,6 +2356,14 @@ function separateCurrentStage() {
     ) {
         return false;
     }
+
+    /*
+       Remove the separated stage's remaining fuel.
+
+       Its dry mass is removed automatically when
+       stageIndex advances and calculateVehicleMass()
+       recalculates the remaining vehicle.
+    */
 
     currentStage.fuelRemaining = 0;
 
@@ -1857,11 +2378,24 @@ function separateCurrentStage() {
 
     flightState.stageArmed = false;
 
+    /*
+       Preserve all position and velocity components.
+
+       Separation changes vehicle mass and available
+       thrust, not the existing velocity.
+    */
+
     flightState.mass =
         calculateVehicleMass();
 
     flightState.fuel =
         calculateTotalRemainingFuel();
+
+    flightState.thrust =
+        getCurrentThrust();
+
+    flightState.twr =
+        calculateTWR();
 
     flightState.deltaVRemaining =
         calculateRemainingDeltaV();
@@ -1874,7 +2408,7 @@ function separateCurrentStage() {
 
 
 /* =========================================================
-   19. PROPULSION AND FUEL CONSUMPTION
+   20. PROPULSION AND FUEL CONSUMPTION
 ========================================================= */
 
 function calculatePropulsionForStep(
@@ -1994,11 +2528,14 @@ function calculatePropulsionForStep(
 
 
 /* =========================================================
-   20. TWO-DIMENSIONAL FLIGHT PHYSICS
+   21. TWO-DIMENSIONAL FLIGHT PHYSICS
 ========================================================= */
 
 function simulateStep(dt) {
-    if (flightState.over) {
+    if (
+        flightState.over ||
+        launchSequence.phase !== "FLIGHT"
+    ) {
         return;
     }
 
@@ -2078,6 +2615,11 @@ function simulateStep(dt) {
             speedBefore;
     }
 
+    /*
+       Calculate guidance using the current thrust
+       and current vehicle mass.
+    */
+
     updatePitchGuidance(dt);
 
     const pitchRadians =
@@ -2098,9 +2640,19 @@ function simulateStep(dt) {
     const allowedAcceleration =
         calculateAccelerationLimit(s.time);
 
+    /*
+       Corrected thrust limiter.
+
+       Use the actual vertical pitch component instead
+       of assuming a minimum vertical fraction of 0.15.
+
+       The limiter accounts for the actual vertical drag
+       component rather than the entire drag magnitude.
+    */
+
     const verticalPitchFactor =
         Math.max(
-            0.15,
+            0.01,
             Math.cos(pitchRadians)
         );
 
@@ -2110,8 +2662,8 @@ function simulateStep(dt) {
             (
                 gravity +
                 allowedAcceleration
-            ) +
-            dragMagnitude
+            ) -
+            dragVertical
         ) / verticalPitchFactor;
 
     const propulsion =
@@ -2163,6 +2715,10 @@ function simulateStep(dt) {
         ) / averageMass -
         gravity;
 
+    /*
+       Integrate velocity.
+    */
+
     const horizontalVelocityAfter =
         horizontalVelocityBefore +
         horizontalAcceleration * dt;
@@ -2170,6 +2726,10 @@ function simulateStep(dt) {
     const verticalVelocityAfter =
         verticalVelocityBefore +
         verticalAcceleration * dt;
+
+    /*
+       Trapezoidal position integration.
+    */
 
     const horizontalPositionAfter =
         s.horizontalPosition +
@@ -2191,9 +2751,19 @@ function simulateStep(dt) {
             verticalVelocityAfter
         );
 
+    /*
+       Update state.
+    */
+
     s.thrust = thrust;
 
     s.mass = massAfter;
+
+    s.horizontalAcceleration =
+        horizontalAcceleration;
+
+    s.verticalAcceleration =
+        verticalAcceleration;
 
     s.acceleration =
         calculateTotalSpeed(
@@ -2219,7 +2789,7 @@ function simulateStep(dt) {
     s.time += dt;
 
     /*
-       Delta-v accounting.
+       Delta-v bookkeeping.
     */
 
     if (speedBefore > 0.001) {
@@ -2262,6 +2832,10 @@ function simulateStep(dt) {
             dragLossAcceleration * dt;
     }
 
+    /*
+       Update maximum altitude and remaining resources.
+    */
+
     s.maxAltitude = Math.max(
         s.maxAltitude,
         s.altitude
@@ -2272,6 +2846,10 @@ function simulateStep(dt) {
 
     s.deltaVRemaining =
         calculateRemainingDeltaV();
+
+    /*
+       Calculate TWR using the new mass and current thrust.
+    */
 
     s.twr =
         s.mass > 0
@@ -2293,6 +2871,10 @@ function simulateStep(dt) {
         return;
     }
 
+    /*
+       Ground impact.
+    */
+
     if (
         s.altitude <= 0 &&
         s.time > dt
@@ -2307,6 +2889,10 @@ function simulateStep(dt) {
 
         return;
     }
+
+    /*
+       Propellant exhaustion and apogee.
+    */
 
     const allPropellantExhausted =
         s.fuel <= 0.000001 &&
@@ -2324,6 +2910,10 @@ function simulateStep(dt) {
         return;
     }
 
+    /*
+       Simulation time limit.
+    */
+
     if (s.time >= MAX_SIMULATION_TIME) {
         s.over = true;
 
@@ -2333,7 +2923,7 @@ function simulateStep(dt) {
 
 
 /* =========================================================
-   21. END-OF-FLIGHT REPORT
+   22. END-OF-FLIGHT REPORT
 ========================================================= */
 
 function showResult() {
@@ -2343,194 +2933,201 @@ function showResult() {
 
     resultShown = true;
 
-    const panel =
-        document.getElementById("flight-result");
+    const missionResult = {
+        status:
+            flightState.result,
 
-    const title =
-        document.getElementById("flight-result-title");
+        destination:
+            "Sun-Earth L2",
 
-    const message =
-        document.getElementById("flight-result-message");
+        message:
+            getFlightResultMessage(),
 
-    const status =
-        document.getElementById("flight-status");
+        arrival:
+            getFlightArrivalMessage(),
 
-    if (panel) {
-        panel.classList.remove("d-none");
-    }
+        missionElapsedTime:
+            flightState.time,
 
-    let resultTitle = "FLIGHT TERMINATED";
+        remainingDeltaV:
+            flightState.deltaVRemaining,
 
-    let resultMessage =
-        "The two-dimensional flight simulation ended.";
+        l2DeltaVRequired:
+            L2_INSERTION_DELTA_V_REQUIRED,
 
-    const isFailure = [
-        "max-q-failure",
-        "apogee",
-        "ground-impact",
-        "time-limit"
-    ].includes(flightState.result);
+        maxQ:
+            flightState.maxQ,
 
-    if (flightState.result === "l2-success") {
-        resultTitle = "MISSION SUCCESS";
+        maxAltitude:
+            flightState.maxAltitude,
 
-        resultMessage =
-            "The spacecraft has sufficient remaining delta-v for the Sun-Earth L2 transfer. It is coasting towards L2, with arrival expected in less than 4 months.";
+        totalVelocity:
+            flightState.speed,
 
-        if (status) {
-            status.textContent = "L2 TRANSFER UNDERWAY";
-        }
+        horizontalVelocity:
+            flightState.horizontalVelocity,
 
-    } else if (
-        flightState.result === "leo-success-l2-insufficient"
-    ) {
-        resultTitle =
-            "LEO REACHED, L2 TRANSFER UNAVAILABLE";
+        verticalVelocity:
+            flightState.verticalVelocity,
 
-        resultMessage =
-            "The spacecraft reached the LEO mission threshold, but did not retain enough delta-v for the L2 transfer.";
+        verticalAcceleration:
+            flightState.verticalAcceleration,
 
-        if (status) {
-            status.textContent = "L2 DELTA-V INSUFFICIENT";
-        }
+        horizontalAcceleration:
+            flightState.horizontalAcceleration,
 
-    } else if (
-        flightState.result === "max-q-failure"
-    ) {
-        resultTitle = "CRITICAL MAX Q FAILURE";
+        engineDeltaVUsed:
+            flightState.engineDeltaVUsed,
 
-        resultMessage =
-            "Dynamic pressure exceeded the simulator's critical structural limit. Vehicle failure declared. Communication link lost and all pending commands discarded.";
+        gravityLoss:
+            flightState.gravityLoss,
 
-        if (status) {
-            status.textContent = "CRITICAL MAX Q FAILURE";
-        }
+        dragLoss:
+            flightState.dragLoss,
 
-    } else if (
-        flightState.result === "apogee"
-    ) {
-        resultTitle = "ASCENT ENDED AT APOGEE";
+        usefulDeltaV:
+            calculateUsefulDeltaV(),
 
-        resultMessage =
-            "The vehicle exhausted its propellant and entered an unpowered descent. This is not orbital insertion.";
+        pitch:
+            flightState.pitch,
 
-        if (status) {
-            status.textContent = "APOGEE REACHED";
-        }
+        dynamicPressure:
+            flightState.dynamicPressure,
 
-    } else if (
-        flightState.result === "ground-impact"
-    ) {
-        resultTitle = "FLIGHT TERMINATED";
+        communicationLost:
+            flightState.communicationLost,
 
-        resultMessage =
-            "The vehicle returned to the launch surface before completing the ascent profile.";
+        groundImpact:
+            flightState.groundImpact
+    };
 
-        if (status) {
-            status.textContent = "GROUND IMPACT";
-        }
+    sessionStorage.setItem(
+        "romanMissionResult",
+        JSON.stringify(missionResult)
+    );
 
-    } else if (
-        flightState.result === "time-limit"
-    ) {
-        resultTitle = "SIMULATION TIME LIMIT";
-
-        resultMessage =
-            "The maximum simulation duration was reached before the flight naturally ended.";
-
-        if (status) {
-            status.textContent = "TIME LIMIT";
-        }
-
-    } else {
-        if (status) {
-            status.textContent = "FLIGHT FAILURE";
-        }
-    }
-
-    resultMessage +=
-        ` MET: ${formatMissionTime(flightState.time)}.`;
-
-    resultMessage +=
-        ` Maximum altitude: ${formatNumber(flightState.maxAltitude)} m.`;
-
-    resultMessage +=
-        ` Total velocity: ${formatNumber(flightState.speed)} m/s.`;
-
-    resultMessage +=
-        ` Horizontal velocity: ${formatNumber(flightState.horizontalVelocity)} m/s.`;
-
-    resultMessage +=
-        ` Vertical velocity: ${formatNumber(flightState.verticalVelocity)} m/s.`;
-
-    resultMessage +=
-        ` Peak dynamic pressure: ${formatNumber(flightState.maxQ)} Pa.`;
-
-    resultMessage +=
-        ` Engine ΔV used: ${formatNumber(flightState.engineDeltaVUsed)} m/s.`;
-
-    resultMessage +=
-        ` Gravity loss: ${formatNumber(flightState.gravityLoss)} m/s.`;
-
-    resultMessage +=
-        ` Drag loss: ${formatNumber(flightState.dragLoss)} m/s.`;
-
-    resultMessage +=
-        ` Useful ΔV accumulated: ${formatNumber(calculateUsefulDeltaV())} m/s.`;
-
-    resultMessage +=
-        ` Final pitch: ${flightState.pitch.toFixed(1)} degrees.`;
-
-    if (title) {
-        title.textContent = resultTitle;
-    }
-
-    if (message) {
-        message.textContent = resultMessage;
-    }
-
-    const telemetryStatus =
-        document.getElementById("telemetry-status");
-
-    if (telemetryStatus) {
-        telemetryStatus.textContent =
-            flightState.communicationLost
-                ? "SIGNAL LOST"
-                : "SIMULATION ENDED";
-    }
-
-    pendingCommands = [];
-
-    const actions =
-        document.getElementById("flight-result-actions");
-
-    if (actions) {
-        actions.innerHTML = "";
-
-        if (isFailure) {
-            const backButton =
-                document.createElement("button");
-
-            backButton.type = "button";
-            backButton.textContent = "GO BACK";
-            backButton.className = "btn btn-primary";
-
-            backButton.addEventListener("click", () => {
-                window.location.href = "/";
-            });
-
-            actions.appendChild(backButton);
-        }
-    }
-
-    updateTelemetry();
-
-    updateControlUI();
+    window.location.assign(
+        RESULT_PAGE_URL
+    );
 }
 
 
 /* =========================================================
-   22. REAL-TIME PHYSICS LOOP
+   22A. RESULT MESSAGE
+========================================================= */
+
+function getFlightResultMessage() {
+    switch (flightState.result) {
+
+        case "l2-success":
+            return (
+                "The spacecraft has reached the LEO mission threshold " +
+                "and has sufficient remaining delta-v for the " +
+                "Sun-Earth L2 transfer."
+            );
+
+        case "leo-success-l2-insufficient":
+            return (
+                "The spacecraft reached the LEO mission threshold, " +
+                "but did not retain enough delta-v for the L2 transfer."
+            );
+
+        case "intentional-abort":
+            return (
+                "The launch sequence was intentionally aborted " +
+                "because GO FOR LAUNCH authorization was not received " +
+                "within the permitted HOLD period."
+            );
+
+        case "max-q-failure":
+            return (
+                "Dynamic pressure exceeded the simulator's critical " +
+                "structural limit. Vehicle failure declared and " +
+                "communication link lost."
+            );
+
+        case "apogee":
+            return (
+                "The vehicle exhausted its propellant and entered " +
+                "an unpowered descent before reaching the LEO " +
+                "mission threshold. This is not orbital insertion."
+            );
+
+        case "ground-impact":
+            return (
+                "The vehicle returned to the launch surface before " +
+                "completing the LEO mission threshold."
+            );
+
+        case "time-limit":
+            return (
+                "The maximum simulation duration was reached before " +
+                "the LEO mission threshold was achieved."
+            );
+
+        case "failure":
+        default:
+            return (
+                "The two-dimensional flight simulation ended " +
+                "before the LEO mission threshold was achieved."
+            );
+    }
+}
+
+
+/* =========================================================
+   22B. RESULT ARRIVAL
+========================================================= */
+
+function getFlightArrivalMessage() {
+    switch (flightState.result) {
+
+        case "l2-success":
+            return (
+                "Expected arrival in less than 4 months."
+            );
+
+        case "leo-success-l2-insufficient":
+            return (
+                "L2 transfer cannot be completed with the remaining delta-v."
+            );
+
+        case "intentional-abort":
+            return (
+                "Launch authorization not received. No liftoff occurred."
+            );
+
+        case "max-q-failure":
+            return (
+                "Mission terminated during ascent."
+            );
+
+        case "apogee":
+            return (
+                "No LEO mission threshold achieved. No orbital insertion."
+            );
+
+        case "ground-impact":
+            return (
+                "Mission terminated before ascent completion."
+            );
+
+        case "time-limit":
+            return (
+                "Mission terminated at the simulation time limit."
+            );
+
+        case "failure":
+        default:
+            return (
+                "Mission could not be completed."
+            );
+    }
+}
+
+
+/* =========================================================
+   23. REAL-TIME PHYSICS AND LAUNCH SEQUENCE LOOP
 ========================================================= */
 
 function runPhysicsFrame(currentTime) {
@@ -2549,6 +3146,35 @@ function runPhysicsFrame(currentTime) {
     );
 
     lastPhysicsTime = currentTime;
+
+    /*
+       COUNTDOWN AND HOLD
+
+       No physics is simulated before T+0.
+    */
+
+    if (launchSequence.phase !== "FLIGHT") {
+        updateLaunchSequence(realElapsed);
+
+        updateTelemetry();
+
+        updateControlUI();
+
+        if (flightState.over) {
+            showResult();
+            return;
+        }
+
+        requestAnimationFrame(
+            runPhysicsFrame
+        );
+
+        return;
+    }
+
+    /*
+       Flight physics begins after T+0.
+    */
 
     physicsAccumulator += realElapsed;
 
@@ -2576,6 +3202,8 @@ function runPhysicsFrame(currentTime) {
 
     updateTelemetry();
 
+    updateControlUI();
+
     requestAnimationFrame(
         runPhysicsFrame
     );
@@ -2583,7 +3211,7 @@ function runPhysicsFrame(currentTime) {
 
 
 /* =========================================================
-   23. INITIALIZATION
+   24. INITIALIZATION
 ========================================================= */
 
 document.addEventListener(
@@ -2645,6 +3273,18 @@ document.addEventListener(
                 error
             );
 
+            hideFlightPanels();
+
+            noWindow?.classList.remove("d-none");
+
+            return;
+        }
+
+        if (
+            !flight ||
+            typeof flight !== "object" ||
+            Array.isArray(flight)
+        ) {
             hideFlightPanels();
 
             noWindow?.classList.remove("d-none");
@@ -2755,6 +3395,10 @@ document.addEventListener(
                 speed: 0,
 
                 acceleration: 0,
+
+                verticalAcceleration: 0,
+
+                horizontalAcceleration: 0,
 
                 mass: vehicle.totalMass,
 
@@ -2914,8 +3558,24 @@ document.addEventListener(
 
         setText(
             "flight-status",
-            "ASCENT GUIDANCE READY"
+            "AWAITING LAUNCH AUTHORIZATION"
         );
+
+
+        /*
+           Initialize launch sequence.
+        */
+
+        launchSequence = {
+            phase: "COUNTDOWN",
+            elapsed: 0,
+            holdElapsed: 0,
+            goReceived: false
+        };
+
+        createLaunchSequenceUI();
+
+        updateLaunchDisplay();
 
         updateTelemetry();
 

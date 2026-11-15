@@ -103,6 +103,6 @@ def flight(request: Request):
 @app.get("/result", response_class=HTMLResponse)
 async def result(request: Request):
     return templates.TemplateResponse(
-        "result.html",
-        {"request": request}
+        request=request,
+        name="result.html",
     )

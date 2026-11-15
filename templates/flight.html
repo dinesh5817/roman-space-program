@@ -20,14 +20,16 @@
         </div>
     </div>
 
-    <!-- LAUNCH WINDOW DETAILS -->
+    <!-- MISSION PARAMETERS -->
     <div id="flight-details" class="card flight-panel mb-4">
         <div class="card-body p-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="text-light mb-0">MISSION PARAMETERS</h5>
                 <span class="telemetry-label">LAUNCH WINDOW</span>
             </div>
+
             <h3 id="window-name" class="text-light fw-bold mb-4">Loading selected window...</h3>
+
             <div class="row g-3">
                 <div class="col-6 col-lg-3">
                     <div class="parameter-box">
@@ -57,6 +59,30 @@
         </div>
     </div>
 
+    <!-- LAUNCH SEQUENCE -->
+    <div id="launch-sequence-panel" class="card flight-panel mb-4">
+        <div class="card-body p-4 text-center">
+            <p class="telemetry-label mb-2">LAUNCH OPERATIONS</p>
+            <h4 class="text-light fw-bold mb-3">Launch Authorization</h4>
+
+            <h1 id="launch-countdown" class="display-3 fw-bold text-light mb-3">
+                T-00:01:00
+            </h1>
+
+            <p id="launch-sequence-status" class="text-secondary mb-4">
+                AWAITING GO FOR LAUNCH
+            </p>
+
+            <button type="button" id="goForLaunch" class="btn btn-success btn-lg px-5">
+                GO FOR LAUNCH
+            </button>
+
+            <p class="control-description mt-3 mb-0">
+                Launch authorization must be received before the 30-second HOLD period expires.
+            </p>
+        </div>
+    </div>
+
     <div id="no-window" class="alert alert-warning d-none mb-4">
         No launch window has been selected. Please select a window first.
     </div>
@@ -79,7 +105,7 @@
 
             <div class="row align-items-center g-3">
 
-                <!-- VELOCITY AND THRUST -->
+                <!-- LEFT TELEMETRY -->
                 <div class="col-6 col-lg-3">
                     <div class="side-telemetry">
 
@@ -115,6 +141,38 @@
                             <p class="gauge-maximum">MAX <span id="thrust-max">-- kN</span></p>
                         </div>
 
+                        <!-- VERTICAL VELOCITY -->
+                        <div class="telemetry-gauge-card">
+                            <p class="telemetry-label">VERTICAL VELOCITY</p>
+                            <div class="gauge-wrapper">
+                                <svg class="gauge-svg" viewBox="0 0 160 160">
+                                    <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+                                    <circle id="vertical-velocity-progress" class="gauge-progress velocity-ring" cx="80" cy="80" r="68"></circle>
+                                </svg>
+                                <div class="gauge-center">
+                                    <h3 id="vertical-velocity-value">0</h3>
+                                    <span>m/s</span>
+                                </div>
+                            </div>
+                            <p class="gauge-maximum">UPWARD / DOWNWARD</p>
+                        </div>
+
+                        <!-- VERTICAL ACCELERATION -->
+                        <div class="telemetry-gauge-card">
+                            <p class="telemetry-label">VERTICAL ACCELERATION</p>
+                            <div class="gauge-wrapper">
+                                <svg class="gauge-svg" viewBox="0 0 160 160">
+                                    <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+                                    <circle id="vertical-acceleration-progress" class="gauge-progress thrust-ring" cx="80" cy="80" r="68"></circle>
+                                </svg>
+                                <div class="gauge-center">
+                                    <h3 id="vertical-acceleration-value">0.00</h3>
+                                    <span>m/s²</span>
+                                </div>
+                            </div>
+                            <p class="gauge-maximum">SIGNED ACCELERATION</p>
+                        </div>
+
                     </div>
                 </div>
 
@@ -145,7 +203,7 @@
                     </div>
                 </div>
 
-                <!-- ALTITUDE AND DELTA-V -->
+                <!-- RIGHT TELEMETRY -->
                 <div class="col-6 col-lg-3">
                     <div class="side-telemetry">
 
@@ -165,7 +223,7 @@
                             <p class="gauge-maximum">MAX <span id="altitude-max">200 km</span></p>
                         </div>
 
-                        <!-- DELTA-V REMAINING -->
+                        <!-- DELTA V REMAINING -->
                         <div class="telemetry-gauge-card">
                             <p class="telemetry-label">ΔV REMAINING</p>
                             <div class="gauge-wrapper">
@@ -181,7 +239,7 @@
                             <p class="gauge-maximum">INITIAL <span id="delta-v-max">-- m/s</span></p>
                         </div>
 
-                        <!-- LEO DELTA-V REQUIRED -->
+                        <!-- LEO DELTA V -->
                         <div class="telemetry-gauge-card">
                             <p class="telemetry-label">ΔV REQUIRED FOR LEO</p>
                             <div class="gauge-wrapper">
@@ -197,47 +255,73 @@
                             <p class="gauge-maximum">NET TARGET <span id="leo-delta-v-max">7,800 m/s</span></p>
                         </div>
 
+                        <!-- CURRENT STAGE TWR -->
+                        <div class="telemetry-gauge-card">
+                            <p class="telemetry-label">CURRENT STAGE TWR</p>
+                            <div class="gauge-wrapper">
+                                <svg class="gauge-svg" viewBox="0 0 160 160">
+                                    <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+                                    <circle id="stage-twr-progress" class="gauge-progress thrust-ring" cx="80" cy="80" r="68"></circle>
+                                </svg>
+                                <div class="gauge-center">
+                                    <h3 id="stage-twr-value">0.00</h3>
+                                    <span>TWR</span>
+                                </div>
+                            </div>
+                            <p class="gauge-maximum">THRUST / VEHICLE WEIGHT</p>
+                        </div>
+
                     </div>
                 </div>
-
             </div>
 
-            <!-- USEFUL DELTA-V ACCUMULATED -->
-            <div class="row justify-content-center mt-4">
-                <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+            <!-- LOWER TELEMETRY -->
+            <div class="row justify-content-center g-3 mt-3">
+
+                <!-- USEFUL DELTA V -->
+                <div class="col-12 col-sm-6 col-lg-4">
                     <div class="telemetry-gauge-card net-delta-v-card">
                         <p class="telemetry-label">USEFUL ΔV ACCUMULATED</p>
-
                         <div class="gauge-wrapper">
                             <svg class="gauge-svg" viewBox="0 0 160 160">
                                 <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
-                                <circle
-                                    id="net-delta-v-progress"
-                                    class="gauge-progress net-delta-v-ring"
-                                    cx="80"
-                                    cy="80"
-                                    r="68">
-                                </circle>
+                                <circle id="net-delta-v-progress" class="gauge-progress net-delta-v-ring" cx="80" cy="80" r="68"></circle>
                             </svg>
-
                             <div class="gauge-center">
                                 <h3 id="net-delta-v-value">0</h3>
                                 <span>m/s</span>
                             </div>
                         </div>
+                        <p class="gauge-maximum">ACCUMULATED / <span id="net-delta-v-max">7,800 m/s</span></p>
+                    </div>
+                </div>
 
+                <!-- CURRENT STAGE FUEL -->
+                <div class="col-12 col-sm-6 col-lg-4">
+                    <div class="telemetry-gauge-card">
+                        <p class="telemetry-label">CURRENT STAGE FUEL REMAINING</p>
+                        <div class="gauge-wrapper">
+                            <svg class="gauge-svg" viewBox="0 0 160 160">
+                                <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+                                <circle id="stage-fuel-progress" class="gauge-progress delta-v-ring" cx="80" cy="80" r="68"></circle>
+                            </svg>
+                            <div class="gauge-center">
+                                <h3 id="stage-fuel-value">100</h3>
+                                <span>%</span>
+                            </div>
+                        </div>
                         <p class="gauge-maximum">
-                            ACCUMULATED / <span id="net-delta-v-max">7,800 m/s</span>
+                            <span id="stage-fuel-mass">-- kg</span> REMAINING
                         </p>
                     </div>
                 </div>
+
             </div>
 
             <div class="telemetry-footer mt-4">
                 <span>DATA SOURCE: FLIGHT SIMULATION</span>
                 <span>ROMAN SPACE PROGRAM</span>
             </div>
-
         </div>
     </div>
 
@@ -248,42 +332,80 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
                 <div>
                     <p class="telemetry-label mb-1">AERODYNAMIC ENVIRONMENT</p>
-                    <h4 class="text-light fw-bold mb-0">Dynamic Pressure</h4>
+                    <h4 class="text-light fw-bold mb-0">Dynamic Pressure Monitoring</h4>
                 </div>
-                <span class="telemetry-label">VERTICAL ASCENT LOADS</span>
+                <span id="q-status-badge" class="telemetry-label">NORMAL LOAD</span>
             </div>
 
-            <div class="row justify-content-center">
-                <div class="col-12 col-md-6 col-xl-4">
-                    <div class="attitude-indicator dynamic-pressure-indicator">
-                        <p class="telemetry-label text-center">DYNAMIC PRESSURE (Q)</p>
+            <div class="row g-4 align-items-center">
 
-                        <div class="attitude-sphere" id="q-sphere">
-                            <div class="sphere-grid horizontal"></div>
-                            <div class="sphere-grid vertical"></div>
-                            <div class="attitude-horizon"></div>
-                            <div class="attitude-marker">◆</div>
+                <div class="col-12 col-lg-5">
+                    <div class="q-main-display text-center p-4">
+                        <p class="telemetry-label mb-2">CURRENT DYNAMIC PRESSURE</p>
+                        <div class="d-flex justify-content-center align-items-baseline gap-2">
+                            <h1 id="dynamic-pressure-value" class="display-3 fw-bold text-light mb-0">0.0</h1>
+                            <span class="text-secondary">kPa</span>
                         </div>
-
-                        <div class="attitude-readout single">
-                            <span class="attitude-readout-label">CURRENT</span>
-                            <span id="dynamic-pressure-value">0.0 kPa</span>
+                        <p class="control-description mt-2 mb-0">
+                            q = ½ ρv²
+                        </p>
+                        <div class="q-peak-display mt-4">
+                            <span class="telemetry-label">PEAK PRESSURE</span>
+                            <h4 id="max-q-value" class="text-light mb-0">0.0 kPa</h4>
                         </div>
-
-                        <p id="q-status" class="attitude-direction text-center">LOW LOAD</p>
-
-                        <div class="attitude-readout single mt-2">
-                            <span class="attitude-readout-label">PEAK Q</span>
-                            <span id="max-q-value">0.0 kPa</span>
-                        </div>
-
-                        <div id="max-q-label" class="max-q-label mt-2" hidden>
+                        <div id="max-q-label" class="max-q-label mt-3" hidden>
                             MAX Q REACHED
                         </div>
                     </div>
                 </div>
-            </div>
 
+                <div class="col-12 col-lg-7">
+                    <div class="q-monitor p-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="telemetry-label">PRESSURE LOAD</span>
+                            <span id="q-percentage" class="control-value">0%</span>
+                        </div>
+
+                        <div class="q-track">
+                            <div id="q-fill" class="q-fill"></div>
+                            <div class="q-marker q-caution-marker" title="45 kPa"></div>
+                            <div class="q-marker q-severe-marker" title="65 kPa"></div>
+                            <div class="q-marker q-failure-marker" title="80 kPa"></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-2">
+                            <span class="q-scale-label">0</span>
+                            <span class="q-scale-label">45 kPa</span>
+                            <span class="q-scale-label">65 kPa</span>
+                            <span class="q-scale-label">80 kPa</span>
+                        </div>
+
+                        <div class="q-threshold-list mt-4">
+                            <div class="d-flex justify-content-between align-items-center py-2">
+                                <span class="q-threshold-dot q-normal-dot"></span>
+                                <span class="flex-grow-1 ms-2">Normal operating region</span>
+                                <strong>0–45 kPa</strong>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center py-2">
+                                <span class="q-threshold-dot q-caution-dot"></span>
+                                <span class="flex-grow-1 ms-2">Caution threshold</span>
+                                <strong>45 kPa</strong>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center py-2">
+                                <span class="q-threshold-dot q-severe-dot"></span>
+                                <span class="flex-grow-1 ms-2">Severe disturbance threshold</span>
+                                <strong>65 kPa</strong>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center py-2">
+                                <span class="q-threshold-dot q-failure-dot"></span>
+                                <span class="flex-grow-1 ms-2">Critical failure threshold</span>
+                                <strong>80 kPa</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </div>
 
@@ -298,7 +420,6 @@
 
             <div class="row g-4">
 
-                <!-- THROTTLE -->
                 <div class="col-12 col-lg-6">
                     <div class="control-box h-100">
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -322,7 +443,6 @@
                     </div>
                 </div>
 
-                <!-- STAGE CONTROL -->
                 <div class="col-12 col-lg-6">
                     <div class="control-box h-100">
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -344,10 +464,8 @@
                         </p>
                     </div>
                 </div>
-
             </div>
 
-            <!-- RADIO COMMAND STATUS -->
             <div class="command-console mt-4">
                 <div class="d-flex flex-wrap justify-content-between gap-2">
                     <span class="telemetry-label">COMMAND LINK</span>
@@ -363,7 +481,6 @@
                             Pending commands: <span id="pending-command-count">0</span>
                         </span>
                     </div>
-
                     <span id="command-link-status" class="link-status">LINK ACTIVE</span>
                 </div>
             </div>
@@ -382,6 +499,75 @@
     </a>
 
 </div>
+
+<style>
+    .q-main-display,
+    .q-monitor {
+        background: rgba(0, 20, 35, 0.55);
+        border: 1px solid rgba(0, 200, 255, 0.18);
+        border-radius: 12px;
+        height: 100%;
+    }
+
+    .q-track {
+        position: relative;
+        height: 18px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.10);
+        overflow: visible;
+    }
+
+    .q-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 20px;
+        background: #20c997;
+        transition: width 0.15s linear, background 0.15s linear;
+    }
+
+    .q-marker {
+        position: absolute;
+        top: -5px;
+        height: 28px;
+        width: 2px;
+        background: white;
+        opacity: 0.9;
+    }
+
+    .q-caution-marker { left: 56.25%; }
+    .q-severe-marker { left: 81.25%; }
+    .q-failure-marker { left: 100%; }
+
+    .q-scale-label {
+        color: #9aa8b5;
+        font-size: 0.75rem;
+    }
+
+    .q-threshold-list {
+        color: #c5d0d9;
+        font-size: 0.88rem;
+    }
+
+    .q-threshold-list strong {
+        color: #e7edf3;
+    }
+
+    .q-threshold-list > div + div {
+        border-top: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .q-threshold-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex: 0 0 9px;
+    }
+
+    .q-normal-dot { background: #20c997; }
+    .q-caution-dot { background: #ffc107; }
+    .q-severe-dot { background: #fd7e14; }
+    .q-failure-dot { background: #dc3545; }
+</style>
 
 <script src="{{ url_for('static', path='flight.js') }}" defer></script>
 
