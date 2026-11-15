@@ -1,0 +1,392 @@
+{% extends "layout.html" %}
+
+{% block title %}Mission Result | Roman Space Program{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+    <div class="card flight-panel mx-auto" style="max-width: 900px;">
+        <div class="card-body p-4 p-md-5 text-center">
+
+            <p class="telemetry-label mb-2">ROMAN SPACE PROGRAM</p>
+
+            <h1 id="result-title" class="text-light fw-bold mb-3">
+                MISSION RESULT
+            </h1>
+
+            <div id="result-status" class="mb-4">
+                PROCESSING MISSION DATA
+            </div>
+
+
+            <!-- L2 MISSION SUCCESS -->
+
+            <div id="success-content" class="d-none">
+
+                <h2 class="text-success fw-bold mb-3">
+                    MISSION SUCCESS
+                </h2>
+
+                <p class="text-light fs-5 mb-2">
+                    The spacecraft has reached the LEO mission threshold
+                    and retained enough delta-v for its transfer.
+                </p>
+
+                <p class="text-light fs-5 mb-4">
+                    The spacecraft is now coasting towards Sun-Earth L2.
+                    Expected arrival is in less than four months.
+                </p>
+
+                <div class="row g-3 text-start mt-4">
+
+                    <div class="col-12 col-md-4">
+                        <div class="parameter-box h-100">
+                            <p class="telemetry-label">DESTINATION</p>
+                            <h6 id="result-destination">Sun-Earth L2</h6>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <div class="parameter-box h-100">
+                            <p class="telemetry-label">REMAINING ΔV</p>
+                            <h6 id="result-delta-v">-- m/s</h6>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <div class="parameter-box h-100">
+                            <p class="telemetry-label">MISSION ELAPSED TIME</p>
+                            <h6 id="result-met">--</h6>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            <!-- LEO REACHED, BUT INSUFFICIENT ΔV FOR L2 -->
+
+            <div id="incomplete-content" class="d-none">
+
+                <h2 class="text-warning fw-bold mb-3">
+                    LEO MISSION THRESHOLD REACHED
+                </h2>
+
+                <p id="incomplete-message" class="text-light fs-5 mb-4">
+                    The spacecraft reached the LEO mission threshold,
+                    but did not retain enough delta-v for the L2 transfer.
+                </p>
+
+                <div class="parameter-box text-start">
+
+                    <p class="telemetry-label">REMAINING ΔV</p>
+                    <h6 id="incomplete-delta-v">-- m/s</h6>
+
+                    <p class="telemetry-label mt-3">
+                        L2 TRANSFER REQUIREMENT
+                    </p>
+                    <h6 id="incomplete-l2-required">-- m/s</h6>
+
+                </div>
+            </div>
+
+
+            <!-- ASCENT FAILURE / SUBORBITAL FLIGHT -->
+
+            <div id="failure-content" class="d-none">
+
+                <h2 id="failure-heading" class="text-warning fw-bold mb-3">
+                    MISSION INCOMPLETE
+                </h2>
+
+                <p id="failure-message" class="text-light fs-5 mb-4">
+                    The vehicle failed to reach the LEO mission threshold.
+                </p>
+
+                <div class="row g-3 text-start">
+
+                    <div class="col-12 col-md-4">
+                        <div class="parameter-box h-100">
+                            <p class="telemetry-label">MAXIMUM ALTITUDE</p>
+                            <h6 id="failure-max-altitude">-- m</h6>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <div class="parameter-box h-100">
+                            <p class="telemetry-label">HORIZONTAL VELOCITY</p>
+                            <h6 id="failure-horizontal-velocity">-- m/s</h6>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <div class="parameter-box h-100">
+                            <p class="telemetry-label">REMAINING ΔV</p>
+                            <h6 id="failure-delta-v">-- m/s</h6>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            <!-- NO RESULT -->
+
+            <div id="missing-content" class="d-none">
+
+                <h2 class="text-warning fw-bold mb-3">
+                    NO MISSION RESULT FOUND
+                </h2>
+
+                <p class="text-light mb-4">
+                    No completed flight result was found in this browser session.
+                    Launch a mission first.
+                </p>
+
+            </div>
+
+
+            <a href="{{ url_for('window') }}" class="btn btn-outline-info mt-4">
+                Return to Launch Windows
+            </a>
+
+        </div>
+    </div>
+</div>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const readout = (id, value) => {
+        const element = document.getElementById(id);
+
+        if (element) {
+            element.textContent = value;
+        }
+    };
+
+
+    const show = id => {
+        document.getElementById(id)
+            ?.classList.remove("d-none");
+    };
+
+
+    const formatNumber = value => {
+        const number = Number(value);
+
+        if (!Number.isFinite(number)) {
+            return "0";
+        }
+
+        return Math.round(number).toLocaleString("en-US");
+    };
+
+
+    const formatMET = seconds => {
+        const total = Math.max(
+            0,
+            Math.floor(Number(seconds) || 0)
+        );
+
+        const hours = Math.floor(total / 3600);
+
+        const minutes = Math.floor(
+            (total % 3600) / 60
+        );
+
+        const remainingSeconds = total % 60;
+
+        return [
+            hours,
+            minutes,
+            remainingSeconds
+        ]
+            .map(value => String(value).padStart(2, "0"))
+            .join(":");
+    };
+
+
+    let result = null;
+
+    try {
+        const raw = sessionStorage.getItem(
+            "romanMissionResult"
+        );
+
+        result = raw ? JSON.parse(raw) : null;
+
+    } catch (error) {
+        console.error(
+            "Could not read mission result:",
+            error
+        );
+    }
+
+
+    if (!result) {
+        show("missing-content");
+
+        readout(
+            "result-title",
+            "MISSION DATA UNAVAILABLE"
+        );
+
+        readout(
+            "result-status",
+            "NO RESULT RECEIVED"
+        );
+
+        return;
+    }
+
+
+    /*
+       L2 SUCCESS
+    */
+
+    if (
+        result.status === "l2-success" ||
+        result.status === "success"
+    ) {
+
+        show("success-content");
+
+        readout(
+            "result-title",
+            "MISSION SUCCESS"
+        );
+
+        readout(
+            "result-status",
+            "L2 TRANSFER UNDERWAY"
+        );
+
+        readout(
+            "result-destination",
+            result.destination || "Sun-Earth L2"
+        );
+
+        readout(
+            "result-delta-v",
+            `${formatNumber(result.remainingDeltaV)} m/s`
+        );
+
+        readout(
+            "result-met",
+            formatMET(result.missionElapsedTime)
+        );
+
+        return;
+    }
+
+
+    /*
+       LEO REACHED, BUT L2 TRANSFER UNAVAILABLE
+    */
+
+    if (
+        result.status === "leo-success-l2-insufficient"
+    ) {
+
+        show("incomplete-content");
+
+        readout(
+            "result-title",
+            "MISSION INCOMPLETE"
+        );
+
+        readout(
+            "result-status",
+            "L2 TRANSFER UNAVAILABLE"
+        );
+
+        readout(
+            "incomplete-message",
+            result.message ||
+            "The spacecraft reached the LEO mission threshold, but did not retain enough delta-v for the L2 transfer."
+        );
+
+        readout(
+            "incomplete-delta-v",
+            `${formatNumber(result.remainingDeltaV)} m/s`
+        );
+
+        readout(
+            "incomplete-l2-required",
+            `${formatNumber(result.l2DeltaVRequired)} m/s`
+        );
+
+        return;
+    }
+
+
+    /*
+       ALL OTHER FLIGHT ENDINGS
+    */
+
+    show("failure-content");
+
+    let heading = "SUBORBITAL FLIGHT";
+    let status = "LEO MISSION THRESHOLD NOT REACHED";
+
+    if (result.status === "intentional-abort") {
+        heading = "MISSION INTENTIONALLY ABORTED";
+        status = "LAUNCH AUTHORIZATION NOT RECEIVED";
+
+    } else if (result.status === "max-q-failure") {
+        heading = "MAX Q FAILURE";
+
+    } else if (result.status === "ground-impact") {
+        heading = "GROUND IMPACT";
+
+    } else if (result.status === "time-limit") {
+        heading = "SIMULATION TIME LIMIT";
+
+    } else if (result.status === "failure") {
+        heading = "FLIGHT FAILURE";
+    }
+
+    readout(
+        "result-title",
+        result.status === "intentional-abort"
+            ? "MISSION ABORTED"
+            : "MISSION INCOMPLETE"
+    );
+
+    readout(
+        "result-status",
+        status
+    );
+
+    readout(
+        "failure-heading",
+        heading
+    );
+
+    readout(
+        "failure-message",
+        result.message ||
+        "The vehicle failed to reach the LEO mission threshold."
+    );
+
+    readout(
+        "failure-max-altitude",
+        `${formatNumber(result.maxAltitude)} m`
+    );
+
+    readout(
+        "failure-horizontal-velocity",
+        `${formatNumber(result.horizontalVelocity)} m/s`
+    );
+
+    readout(
+        "failure-delta-v",
+        `${formatNumber(result.remainingDeltaV)} m/s`
+    );
+
+});
+</script>
+
+{% endblock %}
