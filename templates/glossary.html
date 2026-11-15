@@ -1,6 +1,22 @@
 {% extends "layout.html" %}
 
+{% block title %}Glossary | Roman Space Program{% endblock %}
+
 {% block content %}
+<div class="panel mt-4">
+    <h5>From NASA Meteorite Landings Data</h5>
 
+    <p class="small text-secondary">
+        Source: NASA Open Data – Meteorite Landings
+        (The Meteoritical Society)
+    </p>
 
+    {% for m in meteorites %}
+    <div class="mb-2">
+        <strong>{{ m.name }}</strong> —
+        {{ m.recclass }}, {{ m.mass }} g,
+        {{ m.year }}
+    </div>
+    {% endfor %}
+</div>
 {% endblock %}

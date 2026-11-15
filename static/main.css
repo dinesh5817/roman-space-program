@@ -1,0 +1,715 @@
+
+/* ==========================================
+   ROMAN SPACE PROGRAM
+   Flight Operations & Vehicle Assembly
+   Unified Dark Theme
+========================================== */
+
+/* ==========================================
+   GLOBAL
+========================================== */
+
+:root {
+    --bg-main: #0a0a0b;
+    --bg-panel: #141416;
+    --bg-secondary: #1c1c1e;
+    --bg-console: #0f0f10;
+
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: #303034;
+
+    --text-primary: #e8e8e8;
+    --text-secondary: #8a8a8a;
+    --text-muted: #666;
+
+    --accent-blue: #4da6ff;
+    --accent-green: #00d4aa;
+    --accent-red: #e23b3b;
+    --accent-orange: #ff6b35;
+    --accent-yellow: #fbbf24;
+    --accent-purple: #c4b5fd;
+
+    --font-mono: "Share Tech Mono", "IBM Plex Mono", ui-monospace, monospace;
+}
+
+body {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.flight-console {
+    min-height: 100vh;
+    max-width: 1600px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+}
+
+.panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+/* ==========================================
+   BUTTONS
+========================================== */
+
+.btn-green {
+    background: #b6ebc4;
+    color: var(--bg-main);
+    border: 2px solid #111;
+    font-weight: 700;
+    box-shadow: 3px 3px 0 #7ec99a;
+}
+
+.btn-green:active {
+    box-shadow: none;
+    transform: translate(3px, 3px);
+}
+
+.btn-outline-info.active {
+    background: #0dcaf0;
+    color: #000;
+}
+
+/* ==========================================
+   TYPOGRAPHY
+========================================== */
+
+.telemetry-label {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.telemetry-value,
+.metric-value,
+.parameter-value,
+.control-value,
+.link-status {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.warning {
+    color: #ff2a6a;
+}
+
+/* ==========================================
+   VAB / METRICS
+========================================== */
+
+.metric-box {
+    height: 100%;
+    padding: 20px;
+    background: #252525;
+    border: 1px solid #454545;
+    border-radius: 10px;
+    color: #fff;
+}
+
+.metric-box h6 {
+    margin-bottom: 12px;
+    color: #aaa;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+}
+
+.metric-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.metric-divider {
+    color: #999;
+    font-size: 1rem;
+    font-weight: 400;
+}
+
+.metric-box small,
+.part-card .part-stat {
+    color: #aaa;
+}
+
+.metric-box.over-budget,
+.metric-box.twr-invalid {
+    border-color: #dc3545;
+}
+
+.metric-box.twr-valid {
+    border-color: #198754;
+}
+
+/* ==========================================
+   VEHICLE COMPONENTS
+========================================== */
+
+.part-card,
+.stage-card {
+    height: 100%;
+    padding: 16px;
+    background: #252525;
+    border: 1px solid #454545;
+    border-radius: 9px;
+    color: #fff;
+}
+
+.part-card {
+    transition: border-color 0.2s ease;
+}
+
+.part-card.selected {
+    border-color: #0dcaf0;
+}
+
+.part-card .part-stat {
+    font-size: 0.85rem;
+}
+
+.part-card button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.quantity-picker {
+    padding: 12px;
+    background: #303030;
+    border-radius: 8px;
+}
+
+.quantity-picker strong {
+    min-width: 35px;
+    text-align: center;
+}
+
+.manifest-item {
+    background: #252525;
+    border: 1px solid #454545;
+    color: #fff;
+}
+
+.stage-card.active-stage {
+    border: 2px solid #0dcaf0;
+}
+
+.stage-card .btn {
+    flex-shrink: 0;
+}
+
+.stage-card strong {
+    color: #0dcaf0;
+}
+
+/* ==========================================
+   FLIGHT PANELS
+========================================== */
+
+.flight-panel,
+.control-box,
+.parameter-box,
+.telemetry-gauge-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.flight-panel {
+    padding: 1rem;
+}
+
+/* ==========================================
+   MISSION STATUS
+========================================== */
+
+.mission-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: #b0b0b0;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent-red);
+    box-shadow: 0 0 8px var(--accent-red);
+}
+
+/* ==========================================
+   PARAMETERS
+========================================== */
+
+.parameter-box {
+    height: 100%;
+    padding: 1rem;
+}
+
+.parameter-box h6 {
+    margin: 0;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+}
+
+.parameter-value {
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.parameter-unit {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+/* ==========================================
+   MISSION CLOCK
+========================================== */
+
+.mission-clock {
+    padding: 12px 18px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+}
+
+.mission-clock h3 {
+    margin: 0;
+    color: var(--accent-blue);
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+}
+
+/* ==========================================
+   TELEMETRY GAUGES
+========================================== */
+
+.telemetry-gauge-card {
+    height: 100%;
+    padding: 18px 12px;
+    text-align: center;
+}
+
+.gauge-wrapper {
+    position: relative;
+    width: 140px;
+    max-width: 100%;
+    aspect-ratio: 1;
+    margin: 10px auto;
+}
+
+.gauge-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.gauge-track,
+.gauge-progress {
+    fill: none;
+    stroke-width: 8;
+}
+
+.gauge-track {
+    stroke: #2a2a2c;
+}
+
+.gauge-progress {
+    stroke-linecap: round;
+    stroke-dasharray: 427.26;
+    stroke-dashoffset: 427.26;
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+.velocity-ring {
+    stroke: var(--accent-blue);
+}
+
+.thrust-ring {
+    stroke: var(--accent-orange);
+}
+
+.altitude-ring {
+    stroke: var(--accent-green);
+}
+
+.delta-v-ring {
+    stroke: var(--accent-red);
+}
+
+.gauge-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-family: var(--font-mono);
+}
+
+.gauge-center h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 1.6rem;
+}
+
+.gauge-center span,
+.gauge-maximum {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+.gauge-description {
+    margin-top: 8px;
+    margin-bottom: 5px;
+    color: #c2ced8;
+    font-size: 0.85rem;
+}
+
+.gauge-maximum {
+    margin: 0;
+    letter-spacing: 0.8px;
+}
+
+.gauge-maximum span {
+    color: #dce6ed;
+}
+
+/* ==========================================
+   CENTRAL MISSION ELAPSED TIME
+========================================== */
+
+.met-container {
+    display: flex;
+    min-height: 420px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 5px;
+    text-align: center;
+}
+
+.met-clock {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+}
+
+.met-arc {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.met-arc-track,
+.met-arc-inner {
+    fill: none;
+    stroke-linecap: round;
+}
+
+.met-arc-track {
+    stroke: #2a2a2c;
+    stroke-width: 13;
+}
+
+.met-arc-inner {
+    stroke: var(--accent-blue);
+    stroke-width: 3;
+    opacity: 0.65;
+}
+
+.met-tick {
+    stroke: #8ca2b5;
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.met-time {
+    position: absolute;
+    right: 0;
+    bottom: 8%;
+    left: 0;
+    text-align: center;
+}
+
+.met-prefix {
+    display: block;
+    color: var(--accent-red);
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+.met-time h1 {
+    margin: 5px 0;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: clamp(1.8rem, 4vw, 3.2rem);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.met-time p {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+}
+
+.met-caption {
+    color: var(--accent-blue);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+}
+
+/* ==========================================
+   TELEMETRY FOOTER
+========================================== */
+
+.telemetry-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-strong);
+    color: #718596;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+}
+
+/* ==========================================
+   FLIGHT CONTROLS
+========================================== */
+
+.control-box {
+    padding: 22px;
+}
+
+.control-box h5 {
+    color: #fff;
+    font-weight: 700;
+}
+
+.control-value {
+    color: var(--accent-green);
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.control-description {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+
+/* ==========================================
+   THROTTLE CONTROL
+========================================== */
+
+.throttle-track {
+    width: 100%;
+    height: 8px;
+    overflow: hidden;
+    background: #2a2a2c;
+    border-radius: 4px;
+}
+
+.throttle-fill {
+    width: 100%;
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+}
+
+.throttle-btn {
+    min-width: 75px;
+    font-weight: 700;
+}
+
+.throttle-btn.active {
+    background: #0dcaf0;
+    border-color: #0dcaf0;
+    color: #000;
+}
+
+.throttle-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ==========================================
+   STAGE CONTROL
+========================================== */
+
+.stage-indicator {
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent-yellow);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+}
+
+#armStage,
+#separateStage {
+    font-weight: 700;
+}
+
+#armStage:disabled,
+#separateStage:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ==========================================
+   RADIO COMMAND CONSOLE
+========================================== */
+
+.command-console {
+    padding: 1rem;
+    background: var(--bg-console);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+#command-status {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.link-status {
+    color: var(--accent-green);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+/* ==========================================
+   FLIGHT RESULT
+========================================== */
+
+.flight-result {
+    padding: 28px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    color: var(--text-primary);
+}
+
+#flight-result {
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-red);
+    color: var(--text-primary);
+}
+
+#flight-result-title {
+    color: #fff;
+    font-weight: 700;
+}
+
+#flight-result-message {
+    color: #b0b0b0;
+    line-height: 1.8;
+}
+
+#flight-result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+#flight-result-actions .btn {
+    min-width: 140px;
+    font-weight: 700;
+}
+
+/* ==========================================
+   RESPONSIVE
+========================================== */
+
+@media (max-width: 991.98px) {
+    .met-container {
+        min-height: 300px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .control-box {
+        padding: 16px;
+    }
+
+    .throttle-btn {
+        flex: 1;
+    }
+
+    .command-console {
+        padding: 14px;
+    }
+
+    .telemetry-gauge-card {
+        padding: 12px 6px;
+    }
+
+    .gauge-center h3 {
+        font-size: 1.1rem;
+    }
+
+    .met-time h1 {
+        font-size: 1.8rem;
+    }
+
+    .flight-result {
+        padding: 18px;
+    }
+}
+
+
+/* TOTAL VELOCITY GAUGE */
+.velocity-ring {
+    stroke: var(--accent-blue);
+}
+
+/* USEFUL DELTA-V ACCUMULATED GAUGE */
+.net-delta-v-card {
+    max-width: 420px;
+    margin: 0 auto;
+    border-color: rgba(196, 181, 253, 0.3);
+}
+
+.net-delta-v-ring {
+    stroke: var(--accent-purple);
+}
+
+.net-delta-v-card .gauge-wrapper {
+    width: 170px;
+}
+
+.net-delta-v-card .gauge-center h3 {
+    color: var(--accent-purple);
+}
+
+@media (max-width: 575.98px) {
+    .net-delta-v-card .gauge-wrapper {
+        width: 145px;
+    }
+}

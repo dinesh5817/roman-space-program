@@ -1,18 +1,121 @@
+
 {% extends "layout.html" %}
 
-{% block title %}Shop — Roman Space Program{% endblock %}
+{% block title %}Vehicle Assembly{% endblock %}
 
 {% block content %}
-    <h1 class="mb-4" id="vehicleAssemblyTitle"></h1>
+<div class="container py-4">
 
-    <div
-        id="budgetDisplay"
-        class="d-inline-block px-3 py-2 text-white"
-        style="background-color: rgb(48, 219, 48); border-radius: 6px;"
-    >
-        <span id="spentAmount">0</span>
-        / 80M
+    <h2 class="mb-4" id="vehicleAssemblyTitle">Vehicle Assembly Building</h2>
+
+    <!-- TELEMETRY -->
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-4">
+            <div class="metric-box" id="budgetDisplay">
+                <h6>MISSION BUDGET</h6>
+                <div class="metric-value">
+                    $<span id="spentAmount">0</span>M
+                    <span class="metric-divider">/ $80M</span>
+                </div>
+                <small id="budgetStatus">Budget available</small>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="metric-box">
+                <h6>IDEAL DELTA-V</h6>
+                <div class="metric-value">
+                    <span id="idealDv">0</span>
+                    <span class="metric-divider">m/s</span>
+                </div>
+                <small>Simulated vehicle estimate</small>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="metric-box" id="twrDisplay">
+                <h6>PAD TWR</h6>
+                <div class="metric-value" id="padTwr">0.00</div>
+                <small id="twrStatus">Minimum required: 1.08</small>
+            </div>
+        </div>
+
     </div>
 
-    <script src="{{ url_for('static', path='shop.js') }}"></script>
+    <div id="assemblyStatus" class="alert alert-secondary">
+        Select an engine to begin assembling your vehicle.
+    </div>
+
+    <!-- ENGINES -->
+    <section class="mb-5">
+        <h4 class="mb-3">1. Engine Selection</h4>
+        <div class="row g-3" id="engineList"></div>
+    </section>
+
+    <!-- TANKS -->
+    <section class="mb-5">
+        <h4 class="mb-3">2. Propellant Tanks</h4>
+        <div class="row g-3" id="tankList"></div>
+    </section>
+
+    <!-- DECOUPLERS -->
+    <section class="mb-5">
+        <h4 class="mb-3">3. Stage Separation</h4>
+        <div class="row g-3" id="decouplerList"></div>
+    </section>
+
+    <!-- BOOSTERS -->
+    <section class="mb-5">
+        <h4 class="mb-3">4. Side Boosters</h4>
+
+        <div class="d-flex flex-wrap gap-2 mb-3" id="boosterCount">
+            <button class="btn btn-outline-info" data-count="0">0</button>
+            <button class="btn btn-outline-info" data-count="2">2</button>
+            <button class="btn btn-outline-info" data-count="3">3</button>
+            <button class="btn btn-outline-info" data-count="4">4</button>
+            <button class="btn btn-outline-info" data-count="5">5</button>
+        </div>
+
+        <div class="row g-3" id="boosterBuilder"></div>
+    </section>
+
+    <!-- RADIO -->
+    <section class="mb-5">
+        <h4 class="mb-3">5. Communications</h4>
+        <div class="row g-3" id="radioList"></div>
+    </section>
+
+    <!-- MANIFEST -->
+    <section class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">Vehicle Manifest</h4>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-warning btn-sm" id="undoBtn">
+                    Undo
+                </button>
+
+                <button class="btn btn-outline-danger btn-sm" id="resetBtn">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <div id="assemblyManifest" class="list-group">
+            <div class="list-group-item manifest-item">
+                No components selected.
+            </div>
+        </div>
+    </section>
+
+    <button class="btn btn-info btn-lg w-100"
+            id="proceedBtn"
+            disabled>
+        Proceed to Launch Window Selection
+    </button>
+
+</div>
+
+<script src="{{ url_for('static', path='shop.js') }}" defer></script>
 {% endblock %}
