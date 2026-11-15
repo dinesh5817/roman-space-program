@@ -1,4 +1,3 @@
-
 // ==================================================
 // CONSTANTS
 // ==================================================
@@ -35,6 +34,12 @@ let rocket = {
 let activeStageIndex = 0;
 
 let enginePicker = {
+    name: null,
+    stageIndex: null,
+    quantity: 4
+};
+
+let tankPicker = {
     name: null,
     stageIndex: null,
     quantity: 4
@@ -108,9 +113,7 @@ function updateAgencyTitle() {
 
         vehicleAssemblyTitle.textContent =
             `${savedAgencyName}'s VAB`;
-
     }
-
 }
 
 
@@ -123,7 +126,8 @@ function saveHistory() {
     history.push(JSON.stringify({
         rocket,
         activeStageIndex,
-        enginePicker
+        enginePicker,
+        tankPicker
     }));
 
     if (history.length > 30) {
@@ -143,6 +147,12 @@ function undoAction() {
     rocket = previous.rocket;
     activeStageIndex = previous.activeStageIndex;
     enginePicker = previous.enginePicker;
+
+    tankPicker = previous.tankPicker || {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
 
     hasUnsavedChanges = true;
 
@@ -169,6 +179,12 @@ function resetAssembly() {
         quantity: 4
     };
 
+    tankPicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
+
     renderAll();
 }
 
@@ -180,7 +196,6 @@ function resetAssembly() {
 function getActiveStage() {
 
     return rocket.stages[activeStageIndex];
-
 }
 
 
@@ -196,24 +211,45 @@ function selectStage(index) {
         quantity: 4
     };
 
+    tankPicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
+
     renderAll();
 }
 
 
 // ==================================================
-// ENGINE QUANTITY SELECTOR
+// ENGINE / TANK QUANTITY SELECTORS
 // ==================================================
 
 function changeEngineQuantity(amount) {
 
     enginePicker.quantity = Math.max(
         1,
-        Math.min(20, enginePicker.quantity + amount)
+        enginePicker.quantity + amount
     );
 
     renderCatalog("engine");
 }
 
+
+function changeTankQuantity(amount) {
+
+    tankPicker.quantity = Math.max(
+        1,
+        tankPicker.quantity + amount
+    );
+
+    renderCatalog("tank");
+}
+
+
+// ==================================================
+// ENGINE SELECTION
+// ==================================================
 
 function selectEngine(engine) {
 
@@ -239,6 +275,12 @@ function selectEngine(engine) {
     };
 
     enginePicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
+
+    tankPicker = {
         name: null,
         stageIndex: null,
         quantity: 4
@@ -281,7 +323,6 @@ function canAddPart(kind, item) {
             stage.tanks.length > 0 &&
             stage.decoupler === null
         );
-
     }
 
     return false;
@@ -292,7 +333,7 @@ function canAddPart(kind, item) {
 // ADD TANKS AND DECOUPLERS
 // ==================================================
 
-function addTank(tank) {
+function addTank(tank, quantity = 1) {
 
     const stage = getActiveStage();
 
@@ -300,13 +341,22 @@ function addTank(tank) {
 
     saveHistory();
 
-    stage.tanks.push({
-        name: tank.name,
-        cost: tank.cost,
-        mass: tank.mass,
-        fuel: tank.fuel,
-        fuelType: tank.fuelType
-    });
+    for (let i = 0; i < quantity; i++) {
+
+        stage.tanks.push({
+            name: tank.name,
+            cost: tank.cost,
+            mass: tank.mass,
+            fuel: tank.fuel,
+            fuelType: tank.fuelType
+        });
+    }
+
+    tankPicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
 
     renderAll();
 }
@@ -341,6 +391,12 @@ function addDecoupler(decoupler) {
         quantity: 4
     };
 
+    tankPicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
+
     renderAll();
 }
 
@@ -363,6 +419,12 @@ function removeEngine(stageIndex) {
         quantity: 4
     };
 
+    tankPicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
+
     renderAll();
 }
 
@@ -375,6 +437,12 @@ function removeTank(stageIndex, tankIndex) {
 
     activeStageIndex = stageIndex;
 
+    tankPicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
+
     renderAll();
 }
 
@@ -386,6 +454,18 @@ function removeDecoupler(stageIndex) {
     rocket.stages[stageIndex].decoupler = null;
 
     activeStageIndex = stageIndex;
+
+    enginePicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
+
+    tankPicker = {
+        name: null,
+        stageIndex: null,
+        quantity: 4
+    };
 
     renderAll();
 }
@@ -446,7 +526,6 @@ function validateBuild() {
                     reason: `Stage ${stageNumber} has an incompatible tank.`
                 };
             }
-
         }
 
         if (
@@ -468,7 +547,6 @@ function validateBuild() {
                 reason: `Stage ${stageNumber} has no following stage.`
             };
         }
-
     }
 
     return {
@@ -509,7 +587,6 @@ function createCard(
         line.textContent = detail;
 
         detailContainer.appendChild(line);
-
     });
 
     const button = document.createElement("button");
@@ -568,7 +645,6 @@ function renderCatalog(kind) {
                 `Isp: ${item.isp} s`,
                 `Engine type: ${item.type}`
             ];
-
         }
 
         if (kind === "tank") {
@@ -579,7 +655,6 @@ function renderCatalog(kind) {
                 `Propellant: ${item.fuel.toLocaleString()} kg`,
                 `Fuel type: ${item.fuelType}`
             ];
-
         }
 
         if (kind === "decoupler") {
@@ -588,7 +663,6 @@ function renderCatalog(kind) {
                 `Cost: $${item.cost.toFixed(2)}M`,
                 `Mass: ${item.mass.toLocaleString()} kg`
             ];
-
         }
 
         const column = createCard(
@@ -610,22 +684,31 @@ function renderCatalog(kind) {
                     };
 
                     renderCatalog("engine");
-
                 }
 
                 if (kind === "tank") {
-                    addTank(item);
+
+                    tankPicker = {
+                        name: item.name,
+                        stageIndex: activeStageIndex,
+                        quantity: 4
+                    };
+
+                    renderCatalog("tank");
                 }
 
                 if (kind === "decoupler") {
                     addDecoupler(item);
                 }
-
             },
             !allowed
         );
 
         const card = column.querySelector(".part-card");
+
+        // ==================================================
+        // ENGINE QUANTITY PICKER
+        // ==================================================
 
         if (
             kind === "engine" &&
@@ -668,7 +751,9 @@ function renderCatalog(kind) {
             plus.type = "button";
             plus.className = "btn btn-outline-light";
             plus.textContent = "+";
-            plus.disabled = enginePicker.quantity >= 20;
+
+            // No maximum engine quantity.
+            plus.disabled = false;
 
             plus.addEventListener("click", () => {
                 changeEngineQuantity(1);
@@ -695,13 +780,102 @@ function renderCatalog(kind) {
                 selectEngine(item);
             });
 
-            picker.append(label, controls, total, addButton);
+            picker.append(
+                label,
+                controls,
+                total,
+                addButton
+            );
+
+            card.appendChild(picker);
+        }
+
+        // ==================================================
+        // TANK QUANTITY PICKER
+        // ==================================================
+
+        if (
+            kind === "tank" &&
+            tankPicker.name === item.name &&
+            tankPicker.stageIndex === activeStageIndex
+        ) {
+
+            card.classList.add("selected");
+
+            const picker = document.createElement("div");
+            picker.className = "quantity-picker mt-3";
+
+            const label = document.createElement("div");
+            label.className = "small mb-2";
+            label.textContent = "Number of fuel tanks";
+
+            const controls = document.createElement("div");
+
+            controls.className =
+                "d-flex align-items-center justify-content-center gap-3";
+
+            const minus = document.createElement("button");
+
+            minus.type = "button";
+            minus.className = "btn btn-outline-light";
+            minus.textContent = "−";
+            minus.disabled = tankPicker.quantity <= 1;
+
+            minus.addEventListener("click", () => {
+                changeTankQuantity(-1);
+            });
+
+            const quantity = document.createElement("strong");
+
+            quantity.className = "fs-4";
+            quantity.textContent = tankPicker.quantity;
+
+            const plus = document.createElement("button");
+
+            plus.type = "button";
+            plus.className = "btn btn-outline-light";
+            plus.textContent = "+";
+
+            // No maximum tank quantity.
+            plus.disabled = false;
+
+            plus.addEventListener("click", () => {
+                changeTankQuantity(1);
+            });
+
+            controls.append(minus, quantity, plus);
+
+            const totalFuel = document.createElement("p");
+
+            totalFuel.className =
+                "small text-secondary mt-2 mb-0";
+
+            totalFuel.textContent =
+                `Total propellant: ${(item.fuel * tankPicker.quantity).toLocaleString()} kg`;
+
+            const addButton = document.createElement("button");
+
+            addButton.type = "button";
+            addButton.className = "btn btn-info w-100 mt-3";
+
+            addButton.textContent =
+                `Add ${tankPicker.quantity} ${tankPicker.quantity === 1 ? "Tank" : "Tanks"}`;
+
+            addButton.addEventListener("click", () => {
+                addTank(item, tankPicker.quantity);
+            });
+
+            picker.append(
+                label,
+                controls,
+                totalFuel,
+                addButton
+            );
 
             card.appendChild(picker);
         }
 
         container.appendChild(column);
-
     });
 
     if (kind === "engine" && stage.engine) {
@@ -714,9 +888,7 @@ function renderCatalog(kind) {
             `Stage ${activeStageIndex + 1} already has an engine. Remove it from the manifest to replace it.`;
 
         container.prepend(notice);
-
     }
-
 }
 
 
@@ -785,7 +957,9 @@ function renderManifest() {
         card.appendChild(header);
 
 
-        // Engine
+        // ==================================================
+        // ENGINE
+        // ==================================================
 
         const engineRow = document.createElement("div");
 
@@ -807,13 +981,14 @@ function renderManifest() {
                     removeEngine(stageIndex);
                 })
             );
-
         }
 
         card.appendChild(engineRow);
 
 
-        // Tanks
+        // ==================================================
+        // TANKS
+        // ==================================================
 
         if (stage.tanks.length === 0) {
 
@@ -823,7 +998,6 @@ function renderManifest() {
             missing.textContent = "Propellant tank: Missing";
 
             card.appendChild(missing);
-
         }
 
         stage.tanks.forEach((tank, tankIndex) => {
@@ -845,11 +1019,12 @@ function renderManifest() {
             );
 
             card.appendChild(tankRow);
-
         });
 
 
-        // Decoupler
+        // ==================================================
+        // DECOUPLER
+        // ==================================================
 
         const decouplerRow = document.createElement("div");
 
@@ -873,17 +1048,17 @@ function renderManifest() {
                     removeDecoupler(stageIndex);
                 })
             );
-
         }
 
         card.appendChild(decouplerRow);
 
         container.appendChild(card);
-
     });
 
 
-    // Booster manifest
+    // ==================================================
+    // BOOSTER MANIFEST
+    // ==================================================
 
     if (rocket.boosterCount > 0) {
 
@@ -903,17 +1078,17 @@ function renderManifest() {
             rocket.boosterEngine = null;
 
             renderAll();
-
         });
 
         booster.appendChild(remove);
 
         container.appendChild(booster);
-
     }
 
 
-    // Radio manifest
+    // ==================================================
+    // RADIO MANIFEST
+    // ==================================================
 
     if (rocket.radio) {
 
@@ -935,14 +1110,11 @@ function renderManifest() {
                 rocket.radio = null;
 
                 renderAll();
-
             })
         );
 
         container.appendChild(radio);
-
     }
-
 }
 
 
@@ -973,7 +1145,6 @@ function renderBoosters() {
             "active",
             Number(button.dataset.count) === rocket.boosterCount
         );
-
     });
 
     if (rocket.boosterCount === 0) {
@@ -1015,14 +1186,11 @@ function renderBoosters() {
                     rocket.boosterEngine = engine;
 
                     renderAll();
-
                 }
             );
 
             container.appendChild(column);
-
         });
-
 }
 
 
@@ -1054,14 +1222,11 @@ function renderRadios() {
                 rocket.radio = radio;
 
                 renderAll();
-
             }
         );
 
         container.appendChild(column);
-
     });
-
 }
 
 
@@ -1079,7 +1244,6 @@ function getTotalCost() {
 
             total +=
                 stage.engine.cost * stage.engine.quantity;
-
         }
 
         stage.tanks.forEach(tank => {
@@ -1089,14 +1253,12 @@ function getTotalCost() {
         if (stage.decoupler) {
             total += stage.decoupler.cost;
         }
-
     });
 
     if (rocket.boosterEngine) {
 
         total +=
             rocket.boosterEngine.cost * rocket.boosterCount;
-
     }
 
     if (rocket.radio) {
@@ -1117,26 +1279,22 @@ function getTotalMass() {
 
             total +=
                 stage.engine.mass * stage.engine.quantity;
-
         }
 
         stage.tanks.forEach(tank => {
 
             total += tank.mass + tank.fuel;
-
         });
 
         if (stage.decoupler) {
             total += stage.decoupler.mass;
         }
-
     });
 
     if (rocket.boosterEngine) {
 
         total +=
             rocket.boosterEngine.mass * rocket.boosterCount;
-
     }
 
     return total;
@@ -1164,7 +1322,6 @@ function calculateTWR() {
             rocket.boosterEngine.thrust *
             rocket.boosterCount *
             1000;
-
     }
 
     const mass = getTotalMass();
@@ -1194,7 +1351,8 @@ function calculateDeltaV() {
             0
         );
 
-        const massAfterBurn = currentMass - propellantMass;
+        const massAfterBurn =
+            currentMass - propellantMass;
 
         if (
             massAfterBurn <= 0 ||
@@ -1216,15 +1374,15 @@ function calculateDeltaV() {
             ) +
             (stage.decoupler ? stage.decoupler.mass : 0);
 
-        currentMass = massAfterBurn - dryMass;
+        currentMass =
+            massAfterBurn - dryMass;
 
         if (index === 0 && rocket.boosterEngine) {
 
             currentMass -=
-                rocket.boosterEngine.mass * rocket.boosterCount;
-
+                rocket.boosterEngine.mass *
+                rocket.boosterCount;
         }
-
     });
 
     return Math.max(0, totalDeltaV);
@@ -1259,7 +1417,9 @@ function updateMetrics() {
         twr.toFixed(2);
 
 
-    // Budget
+    // ==================================================
+    // BUDGET
+    // ==================================================
 
     const budgetBox =
         document.getElementById("budgetDisplay");
@@ -1275,7 +1435,9 @@ function updateMetrics() {
             : `$${((BUDGET - spent) / 1000).toFixed(2)}B remaining`;
 
 
+    // ==================================================
     // TWR
+    // ==================================================
 
     const twrBox =
         document.getElementById("twrDisplay");
@@ -1298,7 +1460,6 @@ function updateMetrics() {
             : twr >= MAX_TWR
                 ? `Maximum launch TWR: ${MAX_TWR.toFixed(2)}`
                 : "Pad TWR within launch limits";
-
 }
 
 
@@ -1381,9 +1542,7 @@ function updateProceed() {
 
         status.textContent =
             "All stages validated. Ready for launch window selection.";
-
     }
-
 }
 
 
@@ -1408,7 +1567,6 @@ function renderAll() {
     updateMetrics();
 
     updateProceed();
-
 }
 
 
@@ -1419,12 +1577,16 @@ function renderAll() {
 document.addEventListener("DOMContentLoaded", () => {
 
 
-    // Agency title
+    // ==================================================
+    // AGENCY TITLE
+    // ==================================================
 
     updateAgencyTitle();
 
 
-    // Reload / leave warning
+    // ==================================================
+    // RELOAD / LEAVE WARNING
+    // ==================================================
 
     window.addEventListener("beforeunload", function (event) {
 
@@ -1433,11 +1595,12 @@ document.addEventListener("DOMContentLoaded", () => {
         event.preventDefault();
 
         event.returnValue = "";
-
     });
 
 
-    // Booster count buttons
+    // ==================================================
+    // BOOSTER COUNT BUTTONS
+    // ==================================================
 
     document.querySelectorAll("#boosterCount button").forEach(button => {
 
@@ -1446,13 +1609,13 @@ document.addEventListener("DOMContentLoaded", () => {
             selectBoosterCount(
                 Number(button.dataset.count)
             );
-
         });
-
     });
 
 
-    // Undo
+    // ==================================================
+    // UNDO
+    // ==================================================
 
     document.getElementById("undoBtn").addEventListener(
         "click",
@@ -1460,7 +1623,9 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
 
-    // Reset
+    // ==================================================
+    // RESET
+    // ==================================================
 
     document.getElementById("resetBtn").addEventListener(
         "click",
@@ -1468,7 +1633,9 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
 
-    // Proceed
+    // ==================================================
+    // PROCEED
+    // ==================================================
 
     document.getElementById("proceedBtn").addEventListener(
         "click",
@@ -1505,9 +1672,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     idealDv:
                         calculateDeltaV()
-
                 }
-
             };
 
 
@@ -1524,12 +1689,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
             window.location.href = "/window";
-
         }
     );
 
 
-    // Initial rendering
+    // ==================================================
+    // INITIAL RENDERING
+    // ==================================================
 
     renderAll();
 

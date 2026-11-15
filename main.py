@@ -42,18 +42,62 @@ def agency_name(request: Request):
     )
 
 
-@app.get("/glossary")
-def glossary(request: Request):
+@app.get("/nasa_meteorite_data")
+def nasa_meteorite_data(request: Request):
     with open("static/datasets/Meteorite_Landings.json") as f:
         data = json.load(f)
 
-    meteorites = data["data"][:8]
+    field_indexes = {
+        column["fieldName"]: index
+        for index, column in enumerate(
+            data["meta"]["view"]["columns"]
+        )
+    }
+
+    meteorites = [
+        {
+            "name": row[field_indexes["name"]] or "Unknown",
+            "recclass": row[field_indexes["recclass"]] or "Unknown",
+            "mass": row[field_indexes["mass"]] or "Unknown",
+            "year": str(row[field_indexes["year"]])[:4]
+            if row[field_indexes["year"]]
+            else "Unknown",
+        }
+        for row in data["data"][:100]
+    ]
 
     return templates.TemplateResponse(
         request=request,
-        name="glossary.html",
+        name="nasa_meteorite_data.html",
         context={"meteorites": meteorites},
     )
+
+
+@app.get("/api/nasa_meteorite_data")
+def api_nasa_meteorite_data():
+    with open("static/datasets/Meteorite_Landings.json") as f:
+        data = json.load(f)
+
+    field_indexes = {
+        column["fieldName"]: index
+        for index, column in enumerate(
+            data["meta"]["view"]["columns"]
+        )
+    }
+
+    meteorites = [
+        {
+            "name": row[field_indexes["name"]] or "Unknown",
+            "recclass": row[field_indexes["recclass"]] or "Unknown",
+            "mass": row[field_indexes["mass"]] or "Unknown",
+            "year": str(row[field_indexes["year"]])[:4]
+            if row[field_indexes["year"]]
+            else "Unknown",
+        }
+        for row in data["data"]
+    ]
+
+    return {"meteorites": meteorites}
 
 
 @app.get("/shop")
